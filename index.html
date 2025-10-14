@@ -10,11 +10,12 @@
   <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
   <style>
     :root{
-      --brand-primary: #0a4b3e;
-      --brand-accent:  #c7a440;
+      --brand-primary: #0a4b3e;  /* verde institucional */
+      --brand-accent:  #c7a440;  /* dourado institucional */
+      --brand-dark:    #2f2f2f;  /* cinza escuro da faixa da logo */
     }
     body{ background:#ffffff; color:#0b0f12; }
-    .brand-title{ color: var(--brand-primary); }
+    .brand-title{ color: var(--brand-dark); } /* título no cinza escuro */
     .btn{ padding:.5rem .75rem; border:1px solid #d1d5db; border-radius:.5rem; background:#fff; }
     .btn:hover{ background:#f9fafb; }
     .btn-primary{ background: var(--brand-primary); color:#fff; border-color: var(--brand-primary); }
@@ -23,9 +24,9 @@
     .input, .select{ width:100%; padding:.5rem .75rem; border-radius:.5rem; background:#fff; border:1px solid #d1d5db; color:#111827; }
     .muted{ color:#6b7280; }
     .pill{ background: var(--brand-accent); color:#fff; border-radius:9999px; padding:.15rem .5rem; font-size:.75rem; }
-    .hero img{ max-height: 80px; width: auto; } /* logo maior */
+    .hero img{ max-height: 80px; width: auto; }
     .hero h1{ font-size: 1.5rem; line-height: 1.2; margin-top: .25rem; }
-    .hero p{ margin-top: .1rem; color:#6b7280; }
+    .hero p{ margin-top: .1rem; color:#6b7280; font-size: .975rem; } /* subtítulo menor e cinza claro */
   </style>
 </head>
 <body>
@@ -79,7 +80,7 @@
         React.createElement('div',{key:'hero', className:'hero text-center flex flex-col items-center gap-2'},[
           React.createElement('img',{key:'logo', src:'./header-banner.png', alt:'UNICRED'}),
           React.createElement('h1',{className:'brand-title font-extrabold tracking-tight'},'UNICRED - Núcleo Estratégico'),
-          React.createElement('p',null,'reserva de veículos'),
+          React.createElement('p',null,'Reserva de veículos'),
           msalInstance
             ? (user
                 ? React.createElement('div',{className:'flex items-center gap-2 mt-1'},[
