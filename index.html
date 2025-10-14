@@ -3,18 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Reservas da Frota — Núcleo Estratégico</title>
+  <title>UNICRED — Núcleo Estratégico | Reserva de Veículos</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
   <style>
     :root{
-      --brand-primary: #0a4b3e; /* Unicred verde aproximado */
-      --brand-accent:  #c7a440; /* Unicred dourado aproximado */
+      --brand-primary: #0a4b3e;
+      --brand-accent:  #c7a440;
     }
     body{ background:#ffffff; color:#0b0f12; }
-    .header{ border-bottom:1px solid #e5e7eb; }
     .brand-title{ color: var(--brand-primary); }
     .btn{ padding:.5rem .75rem; border:1px solid #d1d5db; border-radius:.5rem; background:#fff; }
     .btn:hover{ background:#f9fafb; }
@@ -24,8 +23,9 @@
     .input, .select{ width:100%; padding:.5rem .75rem; border-radius:.5rem; background:#fff; border:1px solid #d1d5db; color:#111827; }
     .muted{ color:#6b7280; }
     .pill{ background: var(--brand-accent); color:#fff; border-radius:9999px; padding:.15rem .5rem; font-size:.75rem; }
-    .banner { max-height: 60px; width: auto; }
-    .footer-banner { max-height: 90px; width: auto; }
+    .hero img{ max-height: 80px; width: auto; } /* logo maior */
+    .hero h1{ font-size: 1.5rem; line-height: 1.2; margin-top: .25rem; }
+    .hero p{ margin-top: .1rem; color:#6b7280; }
   </style>
 </head>
 <body>
@@ -75,25 +75,19 @@
       function fmt(x){ const d=new Date(x); return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
 
       return React.createElement('div', {className:'max-w-6xl mx-auto p-4 md:p-8 space-y-6'}, [
-        // Header com banner à esquerda do título
-        React.createElement('div',{key:'hdr',className:'header flex items-center justify-between py-3'},[
-          React.createElement('div',{key:'left',className:'flex items-center gap-4'},[
-            React.createElement('img',{key:'banner', className:'banner', src:'./header-banner.png', alt:'UNICRED'}),
-            React.createElement('div',{key:'tt'},[
-              React.createElement('div',{className:'text-xl font-bold brand-title'},'Núcleo Estratégico'),
-              React.createElement('div',{className:'text-sm muted'},'Reservas de veículos')
-            ])
-          ]),
-          React.createElement('div',{key:'right',className:'flex items-center gap-2'},[
-            msalInstance
-              ? (user
-                  ? React.createElement('div',{className:'flex items-center gap-2'},[
-                      React.createElement('span',{className:'pill'}, user.name || user.username),
-                      React.createElement('button',{className:'btn', onClick:()=>{msLogout().then(()=>setUser(null));}},'Sair')
-                    ])
-                  : React.createElement('button',{className:'btn', onClick:()=>{msLogin().then(acc=>acc && setUser({ name: acc.name, username: acc.username }));}},'Entrar com Microsoft'))
-              : null
-          ])
+        // Hero centralizado com logo + títulos
+        React.createElement('div',{key:'hero', className:'hero text-center flex flex-col items-center gap-2'},[
+          React.createElement('img',{key:'logo', src:'./header-banner.png', alt:'UNICRED'}),
+          React.createElement('h1',{className:'brand-title font-extrabold tracking-tight'},'UNICRED - Núcleo Estratégico'),
+          React.createElement('p',null,'reserva de veículos'),
+          msalInstance
+            ? (user
+                ? React.createElement('div',{className:'flex items-center gap-2 mt-1'},[
+                    React.createElement('span',{className:'pill'}, user.name || user.username),
+                    React.createElement('button',{className:'btn', onClick:()=>{msLogout().then(()=>setUser(null));}},'Sair')
+                  ])
+                : React.createElement('button',{className:'btn', onClick:()=>{msLogin().then(acc=>acc && setUser({ name: acc.name, username: acc.username }));}},'Entrar com Microsoft'))
+            : null
         ]),
 
         // Form
@@ -102,7 +96,7 @@
           React.createElement('div',{className:'grid grid-cols-1 md:grid-cols-2 gap-3'},[
             React.createElement('div',null,[React.createElement('div',{className:'text-sm muted mb-1'},'Veículo'),
               React.createElement('select',{className:'select',value:form.veiculoId,onChange:e=>u('veiculoId',e.target.value)},
-                VEHICLES.map(v=>React.createElement('option',{key:v.id,value:v.id},v.nome+' • '+v.placa))) ]),
+                [{id:'virtus_cinza',nome:'Virtus Cinza',placa:'RYD2D70'},{id:'virtus_preto',nome:'Virtus Preto',placa:'RYD2B90'}].map(v=>React.createElement('option',{key:v.id,value:v.id},v.nome+' • '+v.placa))) ]),
             React.createElement('div',null,[React.createElement('div',{className:'text-sm muted mb-1'},'Motorista'),
               React.createElement('input',{className:'input',value:form.motorista,onChange:e=>u('motorista',e.target.value),placeholder:'Nome do condutor'}) ]),
             React.createElement('div',{className:'md:col-span-2'},[React.createElement('div',{className:'text-sm muted mb-1'},'Destino'),
@@ -149,11 +143,6 @@
                   })
                 )
               ])
-        ]),
-
-        // Footer com banner centralizado (sem textos extras)
-        React.createElement('div',{key:'ftr', className:'py-6 flex justify-center'}, [
-          React.createElement('img', { className:'footer-banner', src:'./footer-banner.png', alt:'UNICRED' })
         ])
       ]);
     }
