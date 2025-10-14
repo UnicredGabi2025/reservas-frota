@@ -1,29 +1,17 @@
-Reservas da Frota — Núcleo Estratégico
-=======================================
+Reservas da Frota — Envio de e-mail (Microsoft 365 via Vercel)
+===================================================================
 
-Como publicar na Vercel (método simples, sem instalar nada):
+Arquivos incluídos:
+- index.html  → página com Nome e E-mail + chamada a /api/send
+- api/send.js → função serverless Vercel (nodemailer + Office 365)
+- package.json→ dependência 'nodemailer'
 
-1) Acesse https://vercel.com e faça login.
-2) Clique em "Add New..." > "Project" > "Import".
-3) Arraste e solte esta pasta ZIP inteira.
-4) Vercel vai perguntar a framework: escolha "Other" (ou deixe a detecção automática). Confirme o deploy.
-5) Pronto! Pegue a URL gerada e compartilhe com sua equipe.
+Como usar:
+1) Suba estes arquivos no seu repositório (substitua o index.html atual).
+2) Na Vercel (Project → Settings → Environment Variables), configure:
+   - M365_USER = reservas@unicred.com.br
+   - M365_PASS = (senha ou App Password)
+3) Faça um commit para gerar novo deploy.
+4) Abra o site, crie uma reserva e valide a chegada do e-mail.
 
-Como testar localmente (opcional):
-- Basta abrir o arquivo index.html no navegador.
-
-Login Google + sincronização em tempo real (opcional):
-1) Crie um projeto no Firebase (firestore + auth Google).
-2) No arquivo index.html, preencha o objeto FIREBASE_CONFIG (apiKey, authDomain, projectId).
-3) Recarregue a página: aparecerá o botão "Entrar com Google".
-4) As reservas passam a salvar/ler em tempo real na coleção 'reservas_frota' do Firestore.
-
-Veículos fixos:
-- Virtus Cinza (RYD2D70)
-- Virtus Preto (RYD2B90)
-
-Campos da reserva:
-- Veículo, Destino, Data/Hora início e fim, Motorista
-
-Funções:
-- Agenda (6 meses), Lista de reservas, Exportar CSV, Exclusão, Detecção de conflitos.
+Dica: Se você usa 'header-banner.png' no topo, mantenha esse arquivo na raiz.

@@ -7,15 +7,14 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
   <style>
     :root{
-      --brand-primary: #0a4b3e;  /* verde institucional */
-      --brand-accent:  #c7a440;  /* dourado institucional */
-      --brand-dark:    #2f2f2f;  /* cinza escuro da faixa da logo */
+      --brand-primary: #0a4b3e;
+      --brand-accent:  #c7a440;
+      --brand-dark:    #2f2f2f;
     }
     body{ background:#ffffff; color:#0b0f12; }
-    .brand-title{ color: var(--brand-dark); } /* título no cinza escuro */
+    .brand-title{ color: var(--brand-dark); }
     .btn{ padding:.5rem .75rem; border:1px solid #d1d5db; border-radius:.5rem; background:#fff; }
     .btn:hover{ background:#f9fafb; }
     .btn-primary{ background: var(--brand-primary); color:#fff; border-color: var(--brand-primary); }
@@ -26,14 +25,16 @@
     .pill{ background: var(--brand-accent); color:#fff; border-radius:9999px; padding:.15rem .5rem; font-size:.75rem; }
     .hero img{ max-height: 80px; width: auto; }
     .hero h1{ font-size: 1.5rem; line-height: 1.2; margin-top: .25rem; }
-    .hero p{ margin-top: .1rem; color:#6b7280; font-size: .975rem; } /* subtítulo menor e cinza claro */
+    .hero p{ margin-top: .1rem; color:#6b7280; font-size: .975rem; }
   </style>
 </head>
 <body>
   <div id="root"></div>
 
   <script>
-    const { useState, useMemo } = React;
+    const { useState, useMemo, useEffect } = React;
+    const TOP_LOGO_SRC = "./header-banner.png";
+
     const VEHICLES=[
       { id:"virtus_cinza", nome:"Virtus Cinza", placa:"RYD2D70" },
       { id:"virtus_preto", nome:"Virtus Preto", placa:"RYD2B90" },
@@ -41,78 +42,149 @@
     const LS_KEY="fleet-bookings-v1";
     const load=()=>{ try{return JSON.parse(localStorage.getItem(LS_KEY)||"[]")}catch{return[]} };
     const save=(rows)=>localStorage.setItem(LS_KEY, JSON.stringify(rows));
-    function overlaps(aStart,aEnd,bStart,bEnd){return (new Date(aStart)<new Date(bEnd))&&(new Date(bStart)<new Date(aEnd));}
 
-    const MS_CONFIG = { clientId: "", tenantId: "" };
-    const msalInstance = (MS_CONFIG.clientId && MS_CONFIG.tenantId)
-      ? new msal.PublicClientApplication({ auth: { clientId: MS_CONFIG.clientId, authority: `https://login.microsoftonline.com/${MS_CONFIG.tenantId}`, redirectUri: window.location.origin } })
-      : null;
-    async function msLogin(){ if(!msalInstance){ alert("Login Microsoft não configurado."); return; } try{ const res=await msalInstance.loginPopup({scopes:['User.Read']}); return res.account; }catch(e){ alert('Falha no login: '+e.message);} }
-    async function msLogout(){ if(!msalInstance) return; const acc=msalInstance.getActiveAccount(); if(acc) await msalInstance.logoutPopup({account:acc}); else await msalInstance.logoutPopup(); }
+    function overlaps(aStart,aEnd,bStart,bEnd){return (new Date(aStart)<new Date(bEnd))&&(new Date(bStart)<new Date(aEnd));}
+    function hasConflict(list, c){
+      return list.some(r=>r.id!==c.id && r.veiculoId===c.veiculoId && overlaps(r.inicio,r.fim,c.inicio,c.fim));
+    }
+    function fmt(x){ const d=new Date(x); return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+
+    async function sendEmail({to, subject, html}){
+      const res = await fetch("/api/send", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({to, subject, html})
+      });
+      const data = await res.json().catch(()=>({}));
+      if (!res.ok || !data.ok){
+        throw new Error(data.error || ("Falha ao enviar e-mail ("+res.status+")"));
+      }
+      return data;
+    }
 
     function App(){
       const [reservas,setReservas]=useState(load());
       const [form,setForm]=useState({
-        id:crypto.randomUUID(),
-        veiculoId:VEHICLES[0].id,
-        destino:"",
-        motorista:"",
-        inicio:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),
-        fim:new Date(Date.now()+60*60*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16)
+        id: crypto.randomUUID(),
+        veiculoId: VEHICLES[0].id,
+        destino: "",
+        nome: "",
+        email: "",
+        inicio: new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),
+        fim: new Date(Date.now()+60*60*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16)
       });
-      const [user,setUser]=useState(null);
+
+      useEffect(()=>{ save(reservas); }, [reservas]);
 
       function u(k,v){ setForm(p=>({...p,[k]:v})); }
-      function hasConflict(c){ return reservas.some(r=>r.id!==c.id && r.veiculoId===c.veiculoId && overlaps(r.inicio,r.fim,c.inicio,c.fim)); }
-      function salvar(){
-        const r={...form, inicio:new Date(form.inicio).toISOString(), fim:new Date(form.fim).toISOString(), motorista: form.motorista || (user?.name || user?.username || "") };
-        if(new Date(r.fim)<=new Date(r.inicio)){ alert("Fim deve ser depois do início."); return; }
-        if(hasConflict(r)){ alert("Conflito detectado para este veículo no período."); return; }
-        const next=[...reservas,r]; setReservas(next); save(next);
-        setForm({ id:crypto.randomUUID(), veiculoId:VEHICLES[0].id, destino:"", motorista:"", inicio:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16), fim:new Date(Date.now()+60*60*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16) });
+
+      async function salvar(){
+        const inicioISO = new Date(form.inicio).toISOString();
+        const fimISO = new Date(form.fim).toISOString();
+
+        if (!form.nome?.trim()){ alert("Informe seu nome."); return; }
+        if (!form.email?.trim() || !/@/.test(form.email)){ alert("Informe um e-mail válido."); return; }
+        if (new Date(fimISO) <= new Date(inicioISO)){ alert("Fim deve ser depois do início."); return; }
+
+        const v = VEHICLES.find(v=>v.id===form.veiculoId);
+        const reserva = {
+          id: crypto.randomUUID(),
+          veiculoId: v.id,
+          destino: form.destino?.trim(),
+          motorista: form.nome?.trim(),
+          email: form.email?.trim(),
+          inicio: inicioISO,
+          fim: fimISO,
+        };
+
+        if (hasConflict(reservas, reserva)){
+          alert("Conflito detectado para este veículo no período.");
+          return;
+        }
+
+        setReservas(prev => [...prev, reserva]);
+
+        try {
+          await sendEmail({
+            to: reserva.email,
+            subject: "Confirmação de reserva — Frota",
+            html: `
+              <p>Olá, ${reserva.motorista}!</p>
+              <p>Sua reserva foi registrada:</p>
+              <ul>
+                <li><b>Veículo:</b> ${v.nome} • ${v.placa}</li>
+                <li><b>Período:</b> ${fmt(reserva.inicio)} — ${fmt(reserva.fim)}</li>
+                <li><b>Destino:</b> ${reserva.destino || '-'}</li>
+                <li><b>ID:</b> ${reserva.id}</li>
+              </ul>
+              <p>Se não foi você, responda este e-mail.</p>
+            `
+          });
+        } catch (e){
+          console.error(e);
+          alert("Reserva salva, mas houve falha ao enviar o e-mail.");
+        }
+
+        alert("Reserva criada! Enviamos a confirmação por e-mail.");
+        setForm({
+          id: crypto.randomUUID(),
+          veiculoId: VEHICLES[0].id,
+          destino: "",
+          nome: "",
+          email: "",
+          inicio: new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),
+          fim: new Date(Date.now()+60*60*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16)
+        });
       }
-      function excluir(id){ if(!confirm("Remover reserva?"))return; const next=reservas.filter(r=>r.id!==id); setReservas(next); save(next); }
-      const ordered=useMemo(()=>reservas.slice().sort((a,b)=>new Date(a.inicio)-new Date(b.inicio)),[reservas]);
-      function fmt(x){ const d=new Date(x); return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+
+      function excluir(id){
+        if (!confirm("Remover reserva?")) return;
+        setReservas(prev => prev.filter(r=>r.id!==id));
+      }
+
+      const ordered = useMemo(()=>reservas.slice().sort((a,b)=>new Date(a.inicio)-new Date(b.inicio)),[reservas]);
 
       return React.createElement('div', {className:'max-w-6xl mx-auto p-4 md:p-8 space-y-6'}, [
-        // Hero centralizado com logo + títulos
         React.createElement('div',{key:'hero', className:'hero text-center flex flex-col items-center gap-2'},[
-          React.createElement('img',{key:'logo', src:'./header-banner.png', alt:'UNICRED'}),
+          React.createElement('img',{key:'logo', src:TOP_LOGO_SRC, alt:'UNICRED', onError:(e)=>{e.target.style.display='none';}}),
           React.createElement('h1',{className:'brand-title font-extrabold tracking-tight'},'UNICRED - Núcleo Estratégico'),
           React.createElement('p',null,'Reserva de veículos'),
-          msalInstance
-            ? (user
-                ? React.createElement('div',{className:'flex items-center gap-2 mt-1'},[
-                    React.createElement('span',{className:'pill'}, user.name || user.username),
-                    React.createElement('button',{className:'btn', onClick:()=>{msLogout().then(()=>setUser(null));}},'Sair')
-                  ])
-                : React.createElement('button',{className:'btn', onClick:()=>{msLogin().then(acc=>acc && setUser({ name: acc.name, username: acc.username }));}},'Entrar com Microsoft'))
-            : null
         ]),
 
-        // Form
         React.createElement('div',{key:'form',className:'card p-4'},[
           React.createElement('h2',{className:'text-lg font-semibold mb-3'},'Nova reserva'),
           React.createElement('div',{className:'grid grid-cols-1 md:grid-cols-2 gap-3'},[
-            React.createElement('div',null,[React.createElement('div',{className:'text-sm muted mb-1'},'Veículo'),
+            React.createElement('div',null,[
+              React.createElement('div',{className:'text-sm muted mb-1'},'Veículo'),
               React.createElement('select',{className:'select',value:form.veiculoId,onChange:e=>u('veiculoId',e.target.value)},
-                [{id:'virtus_cinza',nome:'Virtus Cinza',placa:'RYD2D70'},{id:'virtus_preto',nome:'Virtus Preto',placa:'RYD2B90'}].map(v=>React.createElement('option',{key:v.id,value:v.id},v.nome+' • '+v.placa))) ]),
-            React.createElement('div',null,[React.createElement('div',{className:'text-sm muted mb-1'},'Motorista'),
-              React.createElement('input',{className:'input',value:form.motorista,onChange:e=>u('motorista',e.target.value),placeholder:'Nome do condutor'}) ]),
-            React.createElement('div',{className:'md:col-span-2'},[React.createElement('div',{className:'text-sm muted mb-1'},'Destino'),
-              React.createElement('input',{className:'input',value:form.destino,onChange:e=>u('destino',e.target.value),placeholder:'Cidade / órgão / reunião'}) ]),
-            React.createElement('div',null,[React.createElement('div',{className:'text-sm muted mb-1'},'Data e hora (início)'),
-              React.createElement('input',{type:'datetime-local',className:'input',value:form.inicio,onChange:e=>u('inicio',e.target.value)}) ]),
-            React.createElement('div',null,[React.createElement('div',{className:'text-sm muted mb-1'},'Data e hora (fim)'),
-              React.createElement('input',{type:'datetime-local',className:'input',value:form.fim,onChange:e=>u('fim',e.target.value)}) ]),
+                VEHICLES.map(v=>React.createElement('option',{key:v.id,value:v.id},v.nome+' • '+v.placa)))
+            ]),
+            React.createElement('div',null,[
+              React.createElement('div',{className:'text-sm muted mb-1'},'Nome'),
+              React.createElement('input',{className:'input',value:form.nome,onChange:e=>u('nome',e.target.value),placeholder:'Seu nome completo'})
+            ]),
+            React.createElement('div',null,[
+              React.createElement('div',{className:'text-sm muted mb-1'},'E-mail'),
+              React.createElement('input',{type:'email',className:'input',value:form.email,onChange:e=>u('email',e.target.value),placeholder:'seuemail@empresa.com.br'})
+            ]),
+            React.createElement('div',{className:'md:col-span-2'},[
+              React.createElement('div',{className:'text-sm muted mb-1'},'Destino'),
+              React.createElement('input',{className:'input',value:form.destino,onChange:e=>u('destino',e.target.value),placeholder:'Cidade / órgão / reunião'})
+            ]),
+            React.createElement('div',null,[
+              React.createElement('div',{className:'text-sm muted mb-1'},'Data e hora (início)'),
+              React.createElement('input',{type:'datetime-local',className:'input',value:form.inicio,onChange:e=>u('inicio',e.target.value)})
+            ]),
+            React.createElement('div',null,[
+              React.createElement('div',{className:'text-sm muted mb-1'},'Data e hora (fim)'),
+              React.createElement('input',{type:'datetime-local',className:'input',value:form.fim,onChange:e=>u('fim',e.target.value)})
+            ]),
             React.createElement('div',{className:'md:col-span-2 text-right'},[
               React.createElement('button',{className:'btn btn-primary',onClick:salvar},'Salvar reserva')
             ])
           ])
         ]),
 
-        // Lista
         React.createElement('div',{key:'list',className:'card p-4'},[
           React.createElement('h2',{className:'text-lg font-semibold mb-3'},'Reservas'),
           ordered.length===0
@@ -124,6 +196,7 @@
                     React.createElement('th',{className:'text-left p-2'},'Fim'),
                     React.createElement('th',{className:'text-left p-2'},'Veículo'),
                     React.createElement('th',{className:'text-left p-2'},'Motorista'),
+                    React.createElement('th',{className:'text-left p-2'},'E-mail'),
                     React.createElement('th',{className:'text-left p-2'},'Destino'),
                     React.createElement('th',{className:'text-right p-2'},'Ações'),
                   ])
@@ -136,7 +209,8 @@
                       React.createElement('td',{className:'p-2'},fmt(r.fim)),
                       React.createElement('td',{className:'p-2'},(v?.nome||'')+' • '+(v?.placa||'')),
                       React.createElement('td',{className:'p-2'},r.motorista),
-                      React.createElement('td',{className:'p-2'},r.destino),
+                      React.createElement('td',{className:'p-2'},r.email),
+                      React.createElement('td',{className:'p-2'},r.destino || '-'),
                       React.createElement('td',{className:'p-2 text-right'},
                         React.createElement('button',{className:'btn btn-danger',onClick:()=>excluir(r.id)},'Excluir')
                       ),
