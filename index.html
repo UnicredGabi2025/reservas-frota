@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Reservas da Frota — Núcleo Estratégico</title>
+    <!-- Tailwind via CDN (Play) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React via CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Day.js for date helpers -->
+    <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
+    <script src="https://unpkg.com/dayjs@1.11.10/plugin/utc.js"></script>
+    <script src="https://unpkg.com/dayjs@1.11.10/plugin/timezone.js"></script>
+    <script>dayjs.extend(dayjs_plugin_utc); dayjs.extend(dayjs_plugin_timezone);</script>
+
+    <!-- Firebase (opcional, se quiser login + sincronização em tempo real) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+
+    <style>
+      body { background: #0b1220; }
+      .card { background: #0f172a; border: 1px solid #1f2a44; }
+      .muted { color: #94a3b8; }
+      .title { color: #e2e8f0; }
+      .text { color: #e2e8f0; }
+      .accent { color: #38bdf8; }
+      input, select, button, textarea { outline: none; }
+      .btn { @apply px-3 py-2 rounded-lg border border-slate-600 hover:bg-slate-800 transition; }
+      .btn-primary { @apply bg-sky-600 hover:bg-sky-700 border-sky-500 text-white; }
+      .btn-danger { @apply bg-red-600 hover:bg-red-700 border-red-500 text-white; }
+      .input, .select { @apply w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100; }
+      .table th, .table td { @apply px-3 py-2; }
+    </style>
+  </head>
+  <body class="text-slate-100">
+    <div id="root" class="max-w-5xl mx-auto p-4 md:p-8"></div>
+
+    <script>
+      // ================== CONFIGURAÇÃO OPCIONAL DO FIREBASE ==================
+      // Para ativar login Google + sincronização em tempo real entre todos:
+      // 1) Preencha os campos abaixo com os valores do seu projeto Firebase.
+      // 2) Ao recarregar, verá o botão "Entrar com Google" e tudo sincroniza.
+      const FIREBASE_CONFIG = {
+        apiKey: "",         // ex: "AIza..."
+        authDomain: "",     // ex: "seu-projeto.firebaseapp.com"
+        projectId: "",      // ex: "seu-projeto"
+      };
+      // ======================================================================
+
+      const { useState, useMemo, useEffect, useRef } = React;
+
+      // Veículos fixos
+      const VEHICLES = [
+        { id: "virtus_cinza", nome: "Virtus Cinza", placa: "RYD2D70" },
+        { id: "virtus_preto", nome: "Virtus Preto", placa: "RYD2B90" },
+      ];
+
+      // Persistência local
+      const LS_KEY = "fleet-bookings-v1";
+      const loadLocal = () => { try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch { return []; } };
+      const saveLocal = (rows) => localStorage.setItem(LS_KEY, JSON.stringify(rows));
+
+      function sixMonthDays() {
+        const start = dayjs().startOf('day');
+        const end = start.add(6, 'month');
+        const days = [];
+        let d = start;
+        while (d.isBefore(end) || d.isSame(end, 'day')) {
+          days.push(d);
+          d = d.add(1, 'day');
+        }
+        return days;
+      }
+
+      function overlaps(aStart, aEnd, bStart, bEnd) {
+        return (new Date(aStart) < new Date(bEnd)) && (new Date(bStart) < new Date(aEnd));
+      }
+
+      function Field({label, children}) {
+        return React.createElement('div', {className: 'mb-3'}, [
+          React.createElement('div', {key: 'l', className: 'text-sm muted mb-1'}, label),
+          children
+        ]);
+      }
+
+      function ReservaForm({ initial, onCancel, onSave }) {
+        const [form, setForm] = useState(initial || (function(){
+          const now = new Date();
+          const nextHour = new Date(Date.now() + 60*60*1000);
+          return {
+            id: crypto.randomUUID(),
+            veiculoId: VEHICLES[0].id,
+            destino: "",
+            motorista: "",
+            inicio: new Date(now.getTime() - now.getTimezoneOffset()*60000).toISOString().slice(0,16),
+            fim: new Date(nextHour.getTime() - nextHour.getTimezoneOffset()*60000).toISOString().slice(0,16),
+          };
+        })());
+
+        function u(k, v){ setForm(prev => ({...prev, [k]: v})); }
+
+        return React.createElement('div', {className: 'grid grid-cols-1 md:grid-cols-2 gap-3'}, [
+          React.createElement(Field, {key:'veic', label:'Veículo'}, 
+            React.createElement('select', {className:'select', value: form.veiculoId, onChange:e=>u('veiculoId', e.target.value)},
+              VEHICLES.map(v => React.createElement('option', {key:v.id, value:v.id}, v.nome + " • " + v.placa))
+            )
+          ),
+          React.createElement(Field, {key:'mot', label:'Motorista'},
+            React.createElement('input', {className:'input', value: form.motorista, onChange:e=>u('motorista', e.target.value), placeholder:'Nome do condutor'})
+          ),
+          React.createElement('div', {key:'dest', className:'md:col-span-2'}, 
+            React.createElement(Field, {label:'Destino'},
+              React.createElement('input', {className:'input', value: form.destino, onChange:e=>u('destino', e.target.value), placeholder:'Cidade / órgão / reunião'})
+            )
+          ),
+          React.createElement(Field, {key:'ini', label:'Data e hora (início)'},
+            React.createElement('input', {type:'datetime-local', className:'input', value: form.inicio, onChange:e=>u('inicio', e.target.value)})
+          ),
+          React.createElement(Field, {key:'fim', label:'Data e hora (fim)'},
+            React.createElement('input', {type:'datetime-local', className:'input', value: form.fim, onChange:e=>u('fim', e.target.value)})
+          ),
+          React.createElement('div', {key:'actions', className:'md:col-span-2 flex justify-end gap-2 mt-1'}, [
+            React.createElement('button', {key:'c', className:'btn', onClick:onCancel}, 'Cancelar'),
+            React.createElement('button', {key:'s', className:'btn btn-primary', onClick:()=>onSave(form)}, 'Salvar')
+          ])
+        ]);
+      }
+
+      function Agenda({ reservas }){
+        const days = useMemo(() => sixMonthDays(), []);
+        const byDay = useMemo(() => {
+          const map = new Map();
+          reservas.forEach(r => {
+            const key = new Date(r.inicio).toISOString().slice(0,10);
+            if(!map.has(key)) map.set(key, []);
+            map.get(key).push(r);
+          });
+          for (const arr of map.values()) arr.sort((a,b)=> new Date(a.inicio) - new Date(b.inicio));
+          return map;
+        }, [reservas]);
+
+        return React.createElement('div', {className:'card rounded-2xl p-4'}, [
+          React.createElement('div', {key:'h', className:'title text-lg font-semibold mb-3 flex items-center gap-2'}, [
+            React.createElement('span', {className:'accent'}, 'Agenda (6 meses)')
+          ]),
+          React.createElement('div', {key:'tbl', className:'max-h-[480px] overflow-auto'}, 
+            React.createElement('table', {className:'table w-full text-sm'}, [
+              React.createElement('thead', {key:'thead', className:'muted text-left sticky top-0 bg-slate-900/80 backdrop-blur'}, 
+                React.createElement('tr', null, [
+                  React.createElement('th', {key:'d'}, 'Data'),
+                  React.createElement('th', {key:'r'}, 'Reservas'),
+                ])
+              ),
+              React.createElement('tbody', {key:'tbody'}, days.map(d => {
+                const key = d.toDate().toISOString().slice(0,10);
+                const items = byDay.get(key) || [];
+                return React.createElement('tr', {key}, [
+                  React.createElement('td', {className:'align-top whitespace-nowrap font-medium'}, d.format('DD/MM (ddd)')),
+                  React.createElement('td', null, items.length === 0
+                    ? React.createElement('span', {className:'muted'}, '— livre —')
+                    : items.map(r => {
+                        const v = VEHICLES.find(v => v.id === r.veiculoId);
+                        const pad = s => String(s).padStart(2,'0');
+                        const t = (x) => { const dd = new Date(x); return pad(dd.getHours())+':'+pad(dd.getMinutes()); };
+                        return React.createElement('div', {key:r.id, className:'border border-slate-700 rounded-lg p-2 mb-2'}, [
+                          React.createElement('div', {key:'v', className:'text-sm font-semibold'}, `${v?.nome} • ${v?.placa}`),
+                          React.createElement('div', {key:'i', className:'text-sm'}, `${t(r.inicio)}–${t(r.fim)} • ${r.destino}`),
+                          React.createElement('div', {key:'m', className:'text-xs muted'}, `Motorista: ${r.motorista}`),
+                        ]);
+                      })
+                  )
+                ]);
+              }))
+            ])
+          )
+        ]);
+      }
+
+      function App(){
+        const [reservas, setReservas] = useState(loadLocal());
+        const [editing, setEditing] = useState(null);
+        const [open, setOpen] = useState(false);
+        const [user, setUser] = useState(null);
+        const [useCloud, setUseCloud] = useState(!!FIREBASE_CONFIG.projectId);
+        const unsubRef = useRef(null);
+
+        // Firestore opcional
+        useEffect(() => {
+          if (!useCloud || !FIREBASE_CONFIG.projectId) return;
+          try {
+            firebase.initializeApp(FIREBASE_CONFIG);
+            const auth = firebase.auth();
+            const db = firebase.firestore();
+            const col = db.collection('reservas_frota');
+            unsubRef.current = col.orderBy('inicio').onSnapshot(snap => {
+              const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+              setReservas(list);
+            });
+            auth.onAuthStateChanged(u => setUser(u));
+            window.login = () => auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+            window.logout = () => auth.signOut();
+            window._cloud = { col };
+          } catch(e){
+            console.warn('Firebase init falhou/ignorado', e);
+            setUseCloud(false);
+          }
+          return () => { if (unsubRef.current) unsubRef.current(); };
+        }, [useCloud]);
+
+        useEffect(() => { if (!useCloud) saveLocal(reservas); }, [reservas, useCloud]);
+
+        const ordered = useMemo(() => [...reservas].sort((a,b)=> new Date(a.inicio)-new Date(a.inicio)), [reservas]);
+
+        function hasConflict(candidate){
+          return reservas.some(r => r.id !== candidate.id && r.veiculoId === candidate.veiculoId && overlaps(r.inicio, r.fim, candidate.inicio, candidate.fim));
+        }
+
+        async function saveReserva(r){
+          const normalized = {
+            ...r,
+            inicio: new Date(r.inicio).toISOString(),
+            fim: new Date(r.fim).toISOString(),
+            motorista: r.motorista?.trim() || (user?.displayName || user?.email || ''),
+            destino: r.destino?.trim() || '',
+          };
+          if (new Date(normalized.fim) <= new Date(normalized.inicio)){
+            alert('O fim deve ser depois do início.'); return;
+          }
+          if (hasConflict(normalized)){
+            alert('Conflito detectado: já existe reserva para este veículo neste período.'); return;
+          }
+
+          if (useCloud && window._cloud){
+            if (normalized.id && reservas.find(x => x.id === normalized.id)) {
+              await window._cloud.col.doc(normalized.id).set(normalized);
+            } else {
+              const doc = await window._cloud.col.add(normalized);
+              normalized.id = doc.id;
+            }
+          } else {
+            if (reservas.some(x => x.id === normalized.id)) {
+              setReservas(prev => prev.map(x => x.id === normalized.id ? normalized : x));
+            } else {
+              setReservas(prev => [...prev, normalized]);
+            }
+          }
+          setOpen(false); setEditing(null);
+        }
+
+        async function removeReserva(id){
+          if (!confirm('Remover esta reserva?')) return;
+          if (useCloud && window._cloud){
+            await window._cloud.col.doc(id).delete();
+          } else {
+            setReservas(prev => prev.filter(r => r.id !== id));
+          }
+        }
+
+        function exportCSV(){
+          const cols = ["id","veiculoId","destino","motorista","inicio","fim"];
+          const escape = s => '"' + String(s??'').replaceAll('"','""') + '"';
+          const rows = [cols.join(",")].concat(reservas.map(r => cols.map(k => escape(r[k])).join(",")));
+          const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = 'reservas-frota.csv'; a.click();
+          URL.revokeObjectURL(url);
+        }
+
+        return React.createElement('div', null, [
+          React.createElement('header', {key:'h', className:'mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3'}, [
+            React.createElement('h1', {key:'t', className:'title text-2xl font-bold flex items-center gap-2'}, [
+              React.createElement('span', {className:'accent'}, 'Reservas da Frota'),
+              React.createElement('span', {className:'muted text-base'}, '• Núcleo Estratégico')
+            ]),
+            React.createElement('div', {key:'actions', className:'flex items-center gap-2'}, [
+              FIREBASE_CONFIG.projectId
+                ? (user
+                    ? React.createElement('div', {className:'flex items-center gap-2'}, [
+                        React.createElement('span', {className:'muted text-sm'}, 'Olá, ' + (user.displayName || user.email)),
+                        React.createElement('button', {className:'btn', onClick:()=>window.logout()}, 'Sair')
+                      ])
+                    : React.createElement('button', {className:'btn', onClick:()=>window.login()}, 'Entrar com Google'))
+                : React.createElement('span', {className:'muted text-xs'}, 'Modo local (sem login)'),
+              React.createElement('button', {className:'btn', onClick: ()=>{ setEditing(null); setOpen(true); } }, 'Nova reserva'),
+              React.createElement('button', {className:'btn', onClick: exportCSV }, 'Exportar CSV'),
+            ]),
+          ]),
+          React.createElement('div', {key:'grid', className:'grid md:grid-cols-2 gap-4'}, [
+            React.createElement('div', {key:'agenda'}, React.createElement(Agenda, { reservas })),
+            React.createElement('div', {key:'lista', className:'card rounded-2xl p-4'}, [
+              React.createElement('div', {key:'ttl', className:'title text-lg font-semibold mb-3'}, 'Lista de reservas'),
+              reservas.length === 0
+                ? React.createElement('div', {className:'muted text-sm'}, 'Sem reservas')
+                : React.createElement('table', {className:'table w-full text-sm'}, [
+                    React.createElement('thead', {key:'thead', className:'muted text-left'}, 
+                      React.createElement('tr', null, [
+                        React.createElement('th', {key:'i'}, 'Início'),
+                        React.createElement('th', {key:'f'}, 'Fim'),
+                        React.createElement('th', {key:'v'}, 'Veículo'),
+                        React.createElement('th', {key:'m'}, 'Motorista'),
+                        React.createElement('th', {key:'d'}, 'Destino'),
+                        React.createElement('th', {key:'a'}, ''),
+                      ])
+                    ),
+                    React.createElement('tbody', {key:'tbody'}, reservas.slice().sort((a,b)=> new Date(a.inicio)-new Date(b.inicio)).map(r => {
+                      const v = VEHICLES.find(v => v.id === r.veiculoId);
+                      const fmt = (x) => { const d=new Date(x); return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})};
+                      return React.createElement('tr', {key:r.id}, [
+                        React.createElement('td', null, fmt(r.inicio)),
+                        React.createElement('td', null, fmt(r.fim)),
+                        React.createElement('td', null, (v?.nome || '') + ' • ' + (v?.placa || '')),
+                        React.createElement('td', null, r.motorista),
+                        React.createElement('td', {title:r.destino}, r.destino),
+                        React.createElement('td', {className:'text-right'}, 
+                          React.createElement('button', {className:'btn btn-danger', onClick:()=>removeReserva(r.id)}, 'Excluir')
+                        )
+                      ]);
+                    }))
+                  ])
+            ])
+          ]),
+          open && React.createElement('div', {key:'modal', className:'fixed inset-0 bg-black/50 flex items-center justify-center p-4'}, 
+            React.createElement('div', {className:'card rounded-2xl p-4 w-full max-w-2xl'}, [
+              React.createElement('div', {key:'mt', className:'title text-lg font-semibold mb-2'}, editing ? 'Editar reserva' : 'Nova reserva'),
+              React.createElement(ReservaForm, { key:'form', initial: editing || undefined, onSave: saveReserva, onCancel: ()=>setOpen(false) })
+            ])
+          )
+        ]);
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(React.createElement(App));
+    </script>
+  </body>
+</html>
