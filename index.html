@@ -24,8 +24,8 @@
     .input, .select{ width:100%; padding:.5rem .75rem; border-radius:.5rem; background:#fff; border:1px solid #d1d5db; color:#111827; }
     .muted{ color:#6b7280; }
     .pill{ background: var(--brand-accent); color:#fff; border-radius:9999px; padding:.15rem .5rem; font-size:.75rem; }
-    img.logo{ height: 46px; }
-    a.link{ color: var(--brand-primary); text-decoration: underline; }
+    .banner { max-height: 60px; width: auto; }
+    .footer-banner { max-height: 90px; width: auto; }
   </style>
 </head>
 <body>
@@ -75,11 +75,12 @@
       function fmt(x){ const d=new Date(x); return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
 
       return React.createElement('div', {className:'max-w-6xl mx-auto p-4 md:p-8 space-y-6'}, [
+        // Header com banner à esquerda do título
         React.createElement('div',{key:'hdr',className:'header flex items-center justify-between py-3'},[
-          React.createElement('div',{key:'left',className:'flex items-center gap-3'},[
-            React.createElement('img',{key:'logo',className:'logo', src:'./logo.png', alt:'UNICRED'}),
+          React.createElement('div',{key:'left',className:'flex items-center gap-4'},[
+            React.createElement('img',{key:'banner', className:'banner', src:'./header-banner.png', alt:'UNICRED'}),
             React.createElement('div',{key:'tt'},[
-              React.createElement('div',{className:'text-xl font-bold brand-title'},'UNICRED — Núcleo Estratégico'),
+              React.createElement('div',{className:'text-xl font-bold brand-title'},'Núcleo Estratégico'),
               React.createElement('div',{className:'text-sm muted'},'Reservas de veículos')
             ])
           ]),
@@ -95,6 +96,7 @@
           ])
         ]),
 
+        // Form
         React.createElement('div',{key:'form',className:'card p-4'},[
           React.createElement('h2',{className:'text-lg font-semibold mb-3'},'Nova reserva'),
           React.createElement('div',{className:'grid grid-cols-1 md:grid-cols-2 gap-3'},[
@@ -115,6 +117,7 @@
           ])
         ]),
 
+        // Lista
         React.createElement('div',{key:'list',className:'card p-4'},[
           React.createElement('h2',{className:'text-lg font-semibold mb-3'},'Reservas'),
           ordered.length===0
@@ -148,8 +151,9 @@
               ])
         ]),
 
-        React.createElement('footer',{className:'text-xs muted text-center'},[
-          'Cores institucionais aplicadas • Substitua ', React.createElement('code',null,'logo.png'), ' se desejar.'
+        // Footer com banner centralizado (sem textos extras)
+        React.createElement('div',{key:'ftr', className:'py-6 flex justify-center'}, [
+          React.createElement('img', { className:'footer-banner', src:'./footer-banner.png', alt:'UNICRED' })
         ])
       ]);
     }
