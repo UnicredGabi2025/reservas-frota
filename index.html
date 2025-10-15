@@ -27,10 +27,12 @@
   <div id="root"></div>
   <script>
     const { useState, useMemo, useEffect } = React;
+
     const VEHICLES=[
       { id:"virtus_cinza", nome:"Virtus Cinza", placa:"RYD2D70" },
       { id:"virtus_preto", nome:"Virtus Preto", placa:"RYD2B90" },
     ];
+
     const LS_KEY="fleet-bookings-v1";
     const ADMIN_FLAG_KEY="fleet-admin-unlocked";
     const load=()=>{ try{return JSON.parse(localStorage.getItem(LS_KEY)||"[]")}catch{return[]} };
@@ -84,7 +86,6 @@
       const [admin,setAdmin]=useState(sessionStorage.getItem(ADMIN_FLAG_KEY)==="1");
 
       useEffect(()=>{ save(reservas); },[reservas]);
-
       function u(k,v){setForm(p=>({...p,[k]:v}));}
 
       async function entrarComoAdmin(){
@@ -149,7 +150,12 @@
         React.createElement('div',{className:'text-center flex flex-col items-center gap-2'},[
           React.createElement('img',{src:'./header-banner.png', alt:'UNICRED', style:{maxHeight:'84px', width:'auto'}}),
           React.createElement('h1',{className:'brand-title text-2xl font-extrabold tracking-tight'},'UNICRED – Núcleo Estratégico'),
-          React.createElement('p',{className:'sub'},'Reserva de veículos')
+          React.createElement('p',{className:'sub'},'Reserva de veículos'),
+          React.createElement('div',{className:'w-full flex justify-end mt-2'},
+            admin
+              ? React.createElement('button',{className:'btn btn-ghost',onClick:sairAdmin},'Sair do modo admin')
+              : React.createElement('button',{className:'btn btn-ghost',onClick:entrarComoAdmin},'Entrar como administrador')
+          )
         ]),
 
         React.createElement('div',{className:'card p-4'},[

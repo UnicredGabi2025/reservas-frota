@@ -1,5 +1,4 @@
-// /api/send.js
-// Gmail SMTP com App Password
+// /api/send.js - Gmail SMTP com App Password
 const nodemailer = require("nodemailer");
 
 module.exports = async (req, res) => {
