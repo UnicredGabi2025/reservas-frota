@@ -1,5 +1,4 @@
 // /api/verify-admin.js
-// Verifica o PIN de administrador enviado pelo cliente sem expor o valor real.
 module.exports = async (req, res) => {
   try {
     if (req.method !== "POST") return res.status(405).json({ ok:false, error:"Method not allowed" });

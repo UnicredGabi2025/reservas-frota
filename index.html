@@ -11,6 +11,7 @@
     :root{--brand-primary:#0a4b3e;--brand-accent:#c7a440;--brand-dark:#2f2f2f;}
     body{background:#fff;color:#0b0f12;}
     .brand-title{color:var(--brand-dark);}
+    .sub{color:#6b7280;}
     .btn{padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.5rem;background:#fff;}
     .btn:hover{background:#f9fafb;}
     .btn-primary{background:var(--brand-primary);color:#fff;border-color:var(--brand-primary);}
@@ -19,7 +20,6 @@
     .card{background:#fff;border:1px solid #e5e7eb;border-radius:.75rem;}
     .input,.select{width:100%;padding:.5rem .75rem;border-radius:.5rem;background:#fff;border:1px solid #d1d5db;color:#111827;}
     .muted{color:#6b7280;}
-    .hero img{max-height:80px;width:auto;}
     th, td { vertical-align: top; }
   </style>
 </head>
@@ -146,16 +146,10 @@
       const ordered = useMemo(()=>reservas.slice().sort((a,b)=>new Date(a.inicio)-new Date(b.inicio)),[reservas]);
 
       return React.createElement('div',{className:'max-w-6xl mx-auto p-4 md:p-8 space-y-6'},[
-        React.createElement('div',{className:'flex items-center justify-between'},[
-          React.createElement('div',{className:'text-center mx-auto'},[
-            React.createElement('h1',{className:'brand-title text-2xl font-bold'},'UNICRED - Núcleo Estratégico'),
-            React.createElement('p',null,'Reserva de veículos')
-          ]),
-          React.createElement('div',{className:'absolute right-4 top-4'},[
-            admin
-              ? React.createElement('button',{className:'btn btn-ghost',onClick:sairAdmin},'Sair do modo admin')
-              : React.createElement('button',{className:'btn btn-ghost',onClick:entrarComoAdmin},'Entrar como administrador')
-          ])
+        React.createElement('div',{className:'text-center flex flex-col items-center gap-2'},[
+          React.createElement('img',{src:'./header-banner.png', alt:'UNICRED', style:{maxHeight:'84px', width:'auto'}}),
+          React.createElement('h1',{className:'brand-title text-2xl font-extrabold tracking-tight'},'UNICRED – Núcleo Estratégico'),
+          React.createElement('p',{className:'sub'},'Reserva de veículos')
         ]),
 
         React.createElement('div',{className:'card p-4'},[

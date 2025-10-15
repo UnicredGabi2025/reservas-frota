@@ -1,21 +1,16 @@
-Reservas da Frota — Campos obrigatórios + Exclusão só por admin
-===================================================================
-Novidades:
-- Todos os campos do formulário são obrigatórios (Nome, Destino, Início, Fim e Veículo).
-- Para excluir uma reserva, é preciso entrar no modo administrador (PIN).
+Reservas da Frota — Gmail (App Password) + PIN admin + banner
+=================================================================
+Arquivos:
+- index.html (logo/banner no topo, título centralizado, campos obrigatórios, PIN para excluir)
+- api/send.js (envio via Gmail SMTP usando App Password)
+- api/verify-admin.js (valida PIN de admin)
+- header-banner.png (suba este arquivo junto)
+- package.json
 
-Como funciona o admin:
-- No topo direito há o botão "Entrar como administrador".
-- Informe o PIN (verificado no servidor, sem expor no front).
-- Ao validar, a sessão atual habilita os botões "Excluir".
-- Para sair, use "Sair do modo admin".
+Variáveis na Vercel (Production):
+- GMAIL_USER      -> a conta Gmail (ex.: reservas.frota.unicred@gmail.com)
+- GMAIL_APP_PASS  -> App Password de 16 caracteres (gerado em https://myaccount.google.com/apppasswords)
+- RESERVAS_TO     -> e-mail central que vai RECEBER (pode ser o mesmo do GMAIL_USER)
+- ADMIN_KEY       -> PIN para entrar como administrador
 
-Variáveis na Vercel (Project → Settings → Environment Variables):
-- M365_USER   -> remetente (ex.: reservas@unicred.com.br)
-- M365_PASS   -> senha ou App Password
-- RESERVAS_TO -> destinatário central (ex.: reservas.unicred@gmail.com)
-- ADMIN_KEY   -> PIN que você usará para entrar como admin (ex.: 123456)
-
-Observação importante:
-- As reservas continuam salvas no navegador (localStorage). Para segurança forte e multiusuário real,
-  considere migrar depois para um backend (ex.: Google Planilhas/Apps Script ou banco no Vercel).
+Depois de configurar, faça um Redeploy e teste.
