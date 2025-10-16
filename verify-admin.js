@@ -1,27 +1,11 @@
-// /api/verify-admin.js — PIN fixo + rota GET para diagnóstico
+// /api/verify-admin.js - PIN fixo no código
 module.exports = async (req, res) => {
   try {
-    // ✅ Diagnóstico: ao abrir /api/verify-admin no navegador (GET),
-    // você deve ver este JSON. Isso prova que ESTE arquivo está no ar.
-    if (req.method === "GET") {
-      return res.status(200).json({
-        ok: true,
-        runtime: "node",
-        version: "pin-fixo-827361-v1" // marcador visível
-      });
-    }
-
-    if (req.method !== "POST") {
-      return res.status(405).json({ ok:false, error:"Method not allowed" });
-    }
-
+    if (req.method !== "POST") return res.status(405).json({ ok:false, error:"Method not allowed" });
     let body = req.body;
-    if (typeof body === "string") {
-      try { body = JSON.parse(body || "{}"); } catch { body = {}; }
-    }
-
+    if (typeof body === "string") { try { body = JSON.parse(body || "{}"); } catch { body = {}; } }
     const pin = (body && body.pin) ? String(body.pin).trim() : "";
-    const PIN_CORRETO = "827361"; // 🔒 PIN fixo
+    const PIN_CORRETO = "827361"; // PIN fixo
 
     if (pin === PIN_CORRETO) return res.status(200).json({ ok:true });
     return res.status(401).json({ ok:false, error:"invalid pin" });
