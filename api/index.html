@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>UNICRED — Núcleo Estratégico | Reserva de Veículos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <style>
+    :root{--brand-primary:#0a4b3e;--brand-accent:#c7a440;--brand-dark:#2f2f2f;}
+    body{background:#fff;color:#0b0f12;}
+    .brand-title{color:var(--brand-dark);}
+    .sub{color:#6b7280;}
+    .btn{padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.5rem;background:#fff;}
+    .btn:hover{background:#f9fafb;}
+    .btn-primary{background:var(--brand-primary);color:#fff;border-color:var(--brand-primary);}
+    .btn-danger{background:#ef4444;color:#fff;border-color:#ef4444;}
+    .btn-ghost{background:transparent;border-color:#d1d5db;}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:.75rem;}
+    .input,.select{width:100%;padding:.5rem .75rem;border-radius:.5rem;background:#fff;border:1px solid #d1d5db;color:#111827;}
+    .muted{color:#6b7280;}
+    th, td { vertical-align: top; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    const { useState, useMemo, useEffect } = React;
+
+    const VEHICLES=[
+      { id:"virtus_cinza", nome:"Virtus Cinza", placa:"RYD2D70" },
+      { id:"virtus_preto", nome:"Virtus Preto", placa:"RYD2B90" },
+    ];
+
+    const LS_KEY="fleet-bookings-v1";
+    const ADMIN_FLAG_KEY="fleet-admin-unlocked";
+    const load=()=>{ try{return JSON.parse(localStorage.getItem(LS_KEY)||"[]")}catch{return[]} };
+    const save=(rows)=>localStorage.setItem(LS_KEY, JSON.stringify(rows));
+    function overlaps(a,b,c,d){return(new Date(a)<new Date(d))&&(new Date(c)<new Date(b));}
+    function hasConflict(list,c){return list.some(r=>r.id!==c.id&&r.veiculoId===c.veiculoId&&overlaps(r.inicio,r.fim,c.inicio,c.fim));}
+    function fmt(x){const d=new Date(x);return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
+
+    async function sendEmail(reserva,v){
+      const res = await fetch("/api/send",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          html:`<p><b>Nova reserva registrada</b></p>
+          <ul>
+            <li><b>Nome:</b> ${reserva.motorista}</li>
+            <li><b>Veículo:</b> ${v.nome} • ${v.placa}</li>
+            <li><b>Período:</b> ${fmt(reserva.inicio)} — ${fmt(reserva.fim)}</li>
+            <li><b>Destino:</b> ${reserva.destino}</li>
+            <li><b>ID:</b> ${reserva.id}</li>
+          </ul>`,
+          veiculo: v.nome,
+          placa: v.placa,
+          motorista: reserva.motorista,
+          inicio: reserva.inicio,
+          fim: reserva.fim
+        })
+      });
+      return await res.json();
+    }
+
+    async function verifyAdmin(pin){
+      const res = await fetch("/api/verify-admin",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ pin })
+      });
+      const data = await res.json().catch(()=>({ok:false}));
+      return !!data.ok;
+    }
+
+    function App(){
+      const [reservas,setReservas]=useState(load());
+      const [form,setForm]=useState({
+        veiculoId:VEHICLES[0].id,
+        destino:"",
+        nome:"",
+        inicio:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),
+        fim:new Date(Date.now()+60*60*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16)
+      });
+      const [admin,setAdmin]=useState(sessionStorage.getItem(ADMIN_FLAG_KEY)==="1");
+
+      useEffect(()=>{ save(reservas); },[reservas]);
+      function u(k,v){setForm(p=>({...p,[k]:v}));}
+
+      async function entrarComoAdmin(){
+        const pin = prompt("Digite o PIN de administrador:");
+        if (!pin) return;
+        const ok = await verifyAdmin(pin);
+        if (ok){
+          sessionStorage.setItem(ADMIN_FLAG_KEY,"1");
+          setAdmin(true);
+          alert("Acesso de administrador habilitado nesta sessão.");
+        } else {
+          alert("PIN inválido.");
+        }
+      }
+      function sairAdmin(){
+        sessionStorage.removeItem(ADMIN_FLAG_KEY);
+        setAdmin(false);
+      }
+
+      function validarObrigatorios(){
+        if (!form.nome?.trim()){ alert("Informe o Nome."); return false; }
+        if (!form.destino?.trim()){ alert("Informe o Destino."); return false; }
+        if (!form.inicio){ alert("Informe a Data/Hora de início."); return false; }
+        if (!form.fim){ alert("Informe a Data/Hora de fim."); return false; }
+        const ini = new Date(form.inicio), fim = new Date(form.fim);
+        if (isNaN(ini)||isNaN(fim)){ alert("Datas inválidas."); return false; }
+        if (fim <= ini){ alert("Fim deve ser depois do início."); return false; }
+        return true;
+      }
+
+      async function salvar(){
+        if (!validarObrigatorios()) return;
+        const v=VEHICLES.find(x=>x.id===form.veiculoId);
+        const reserva={
+          id:crypto.randomUUID(),
+          veiculoId:v.id,
+          destino:form.destino.trim(),
+          motorista:form.nome.trim(),
+          inicio:new Date(form.inicio).toISOString(),
+          fim:new Date(form.fim).toISOString()
+        };
+        if (hasConflict(reservas,reserva)){ alert("Conflito detectado para este veículo no período."); return; }
+        setReservas(prev=>{const n=[...prev,reserva];save(n);return n;});
+        try{ await sendEmail(reserva,v); }catch(e){ console.error(e); alert("Reserva salva, mas houve falha ao enviar o e-mail."); }
+        alert("Reserva salva.");
+        setForm({ veiculoId:VEHICLES[0].id, destino:"", nome:"", inicio:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16), fim:new Date(Date.now()+60*60*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16) });
+      }
+
+      function excluir(id){
+        if (!admin){ alert("Apenas o administrador pode excluir reservas."); return; }
+        if (!confirm("Remover esta reserva?")) return;
+        setReservas(prev=>{
+          const n = prev.filter(r=>r.id!==id);
+          save(n);
+          return n;
+        });
+      }
+
+      const ordered = useMemo(()=>reservas.slice().sort((a,b)=>new Date(a.inicio)-new Date(b.inicio)),[reservas]);
+
+      return React.createElement('div',{className:'max-w-6xl mx-auto p-4 md:p-8 space-y-6'},[
+        React.createElement('div',{className:'text-center flex flex-col items-center gap-2'},[
+          React.createElement('img',{src:'./header-banner.png', alt:'UNICRED', style:{maxHeight:'84px', width:'auto'}}),
+          React.createElement('h1',{className:'brand-title text-2xl font-extrabold tracking-tight'},'UNICRED – Núcleo Estratégico'),
+          React.createElement('p',{className:'sub'},'Reserva de veículos'),
+          React.createElement('div',{className:'w-full flex justify-end mt-2'},
+            admin
+              ? React.createElement('button',{className:'btn btn-ghost',onClick:sairAdmin},'Sair do modo admin')
+              : React.createElement('button',{className:'btn btn-ghost',onClick:entrarComoAdmin},'Entrar como administrador')
+          )
+        ]),
+
+        React.createElement('div',{className:'card p-4'},[
+          React.createElement('h2',{className:'text-lg font-semibold mb-3'},'Nova reserva'),
+          React.createElement('div',{className:'grid grid-cols-1 md:grid-cols-2 gap-3'},[
+            React.createElement('div',null,[
+              React.createElement('div',{className:'muted text-sm mb-1'},'Veículo'),
+              React.createElement('select',{className:'select',value:form.veiculoId,onChange:e=>u('veiculoId',e.target.value),required:true},
+                VEHICLES.map(v=>React.createElement('option',{key:v.id,value:v.id},v.nome+' • '+v.placa)))
+            ]),
+            React.createElement('div',null,[
+              React.createElement('div',{className:'muted text-sm mb-1'},'Nome'),
+              React.createElement('input',{className:'input',value:form.nome,onChange:e=>u('nome',e.target.value),placeholder:'Seu nome completo',required:true})
+            ]),
+            React.createElement('div',{className:'md:col-span-2'},[
+              React.createElement('div',{className:'muted text-sm mb-1'},'Destino'),
+              React.createElement('input',{className:'input',value:form.destino,onChange:e=>u('destino',e.target.value),placeholder:'Cidade / órgão / reunião',required:true})
+            ]),
+            React.createElement('div',null,[
+              React.createElement('div',{className:'muted text-sm mb-1'},'Data e hora (início)'),
+              React.createElement('input',{type:'datetime-local',className:'input',value:form.inicio,onChange:e=>u('inicio',e.target.value),required:true})
+            ]),
+            React.createElement('div',null,[
+              React.createElement('div',{className:'muted text-sm mb-1'},'Data e hora (fim)'),
+              React.createElement('input',{type:'datetime-local',className:'input',value:form.fim,onChange:e=>u('fim',e.target.value),required:true})
+            ]),
+            React.createElement('div',{className:'md:col-span-2 text-right'},[
+              React.createElement('button',{className:'btn btn-primary',onClick:salvar},'Salvar reserva')
+            ])
+          ])
+        ]),
+
+        React.createElement('div',{className:'card p-4'},[
+          React.createElement('h2',{className:'text-lg font-semibold mb-3'},'Reservas'),
+          ordered.length===0
+            ? React.createElement('div',null,'Sem reservas')
+            : React.createElement('table',{className:'w-full text-sm'},[
+                React.createElement('thead',null,
+                  React.createElement('tr',null,[
+                    React.createElement('th',{className:'text-left p-2'},'Início'),
+                    React.createElement('th',{className:'text-left p-2'},'Fim'),
+                    React.createElement('th',{className:'text-left p-2'},'Veículo'),
+                    React.createElement('th',{className:'text-left p-2'},'Motorista'),
+                    React.createElement('th',{className:'text-left p-2'},'Destino'),
+                    admin ? React.createElement('th',{className:'text-right p-2'},'Ações') : null,
+                  ])
+                ),
+                React.createElement('tbody',null,
+                  ordered.map(r=>{
+                    const v=VEHICLES.find(x=>x.id===r.veiculoId);
+                    return React.createElement('tr',{key:r.id,style:{borderTop:'1px solid #e5e7eb'}},[
+                      React.createElement('td',{className:'p-2'},fmt(r.inicio)),
+                      React.createElement('td',{className:'p-2'},fmt(r.fim)),
+                      React.createElement('td',{className:'p-2'},(v?.nome||'')+' • '+(v?.placa||'')),
+                      React.createElement('td',{className:'p-2'},r.motorista),
+                      React.createElement('td',{className:'p-2'},r.destino || '-'),
+                      admin ? React.createElement('td',{className:'p-2 text-right'},
+                        React.createElement('button',{className:'btn btn-danger',onClick:()=>excluir(r.id)},'Excluir')
+                      ) : null,
+                    ]);
+                  })
+                )
+              ])
+        ])
+      ]);
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+  </script>
+</body>
+</html>
