@@ -37,6 +37,9 @@
     const ADMIN_FLAG_KEY="fleet-admin-unlocked";
     const load=()=>{ try{return JSON.parse(localStorage.getItem(LS_KEY)||"[]")}catch{return[]} };
     const save=(rows)=>localStorage.setItem(LS_KEY, JSON.stringify(rows));
+    <script>
+  const SHEET_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxetkQ11a0v-dR7XKkYaQZbcUREWnyQmx-hfsJV79EdZoLMEUWHbBjpV7sij45U3TvESg/exec';
+  const SHEET_TOKEN = 'segredo-aleatorio-123'; //
     function overlaps(a,b,c,d){return(new Date(a)<new Date(d))&&(new Date(c)<new Date(b));}
     function hasConflict(list,c){return list.some(r=>r.id!==c.id&&r.veiculoId===c.veiculoId&&overlaps(r.inicio,r.fim,c.inicio,c.fim));}
     function fmt(x){const d=new Date(x);return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
