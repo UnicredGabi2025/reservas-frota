@@ -46,6 +46,29 @@
 
     async function sendEmail(reserva,v){
       const res = await fetch("/api/send",{
+       async function salvarNoSheets(reserva, v) {
+  try {
+    await fetch(SHEET_WEBAPP_URL, {
+      method: 'POST',
+      // se quiser ler a resposta, remova o 'mode' abaixo; com Apps Script costuma funcionar sem CORS
+      // mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: SHEET_TOKEN,
+        id: reserva.id,
+        veiculo: v.nome,
+        placa: v.placa,
+        motorista: reserva.motorista,
+        destino: reserva.destino,
+        inicio: reserva.inicio,
+        fim: reserva.fim
+      })
+    });
+  } catch (e) {
+    console.error('Falha ao registrar no Sheets:', e);
+  }
+}
+
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
