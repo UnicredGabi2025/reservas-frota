@@ -152,7 +152,8 @@
           motorista:form.nome.trim(),
           inicio:new Date(form.inicio).toISOString(),
           fim:new Date(form.fim).toISOString()
-        };
+        };try { await salvarNoSheets(reserva, v); } catch(e) { console.error(e); }
+
         if (hasConflict(reservas,reserva)){ alert("Conflito detectado para este veículo no período."); return; }
         setReservas(prev=>{const n=[...prev,reserva];save(n);return n;});
         try{ await sendEmail(reserva,v); }catch(e){ console.error(e); alert("Reserva salva, mas houve falha ao enviar o e-mail."); }
