@@ -26,6 +26,10 @@
 <body>
   <div id="root"></div>
   <script>
+    // >>>> Integração com Google Sheets (sua URL já inserida)
+    const SHEET_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxetkQ11a0v-dR7XKkYaQZbcUREWnyQmx-hfsJV79EdZoLMEUWHbBjpV7sij45U3TvESg/exec';
+    const SHEET_TOKEN = 'segredo-aleatorio-123';
+
     const { useState, useMemo, useEffect } = React;
 
     const VEHICLES=[
@@ -37,65 +41,52 @@
     const ADMIN_FLAG_KEY="fleet-admin-unlocked";
     const load=()=>{ try{return JSON.parse(localStorage.getItem(LS_KEY)||"[]")}catch{return[]} };
     const save=(rows)=>localStorage.setItem(LS_KEY, JSON.stringify(rows));
-    <script>
-  const SHEET_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxetkQ11a0v-dR7XKkYaQZbcUREWnyQmx-hfsJV79EdZoLMEUWHbBjpV7sij45U3TvESg/exec';
-  const SHEET_TOKEN = 'segredo-aleatorio-123'; //
     function overlaps(a,b,c,d){return(new Date(a)<new Date(d))&&(new Date(c)<new Date(b));}
     function hasConflict(list,c){return list.some(r=>r.id!==c.id&&r.veiculoId===c.veiculoId&&overlaps(r.inicio,r.fim,c.inicio,c.fim));}
     function fmt(x){const d=new Date(x);return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
 
     async function sendEmail(reserva,v){
-      const res = await fetch("/api/send",{
-       async function salvarNoSheets(reserva, v) {
-  try {
-    await fetch(SHEET_WEBAPP_URL, {
-      method: 'POST',
-      // se quiser ler a resposta, remova o 'mode' abaixo; com Apps Script costuma funcionar sem CORS
-      // mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        token: SHEET_TOKEN,
-        id: reserva.id,
-        veiculo: v.nome,
-        placa: v.placa,
-        motorista: reserva.motorista,
-        destino: reserva.destino,
-        inicio: reserva.inicio,
-        fim: reserva.fim
-      })
-    });
-  } catch (e) {
-    console.error('Falha ao registrar no Sheets:', e);
-  }
-}
+      try{
+        const res = await fetch("/api/send",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({
+            html:`<p><b>Nova reserva registrada</b></p>
+            <ul>
+              <li><b>Nome:</b> ${reserva.motorista}</li>
+              <li><b>Veículo:</b> ${v.nome} • ${v.placa}</li>
+              <li><b>Período:</b> ${fmt(reserva.inicio)} — ${fmt(reserva.fim)}</li>
+              <li><b>Destino:</b> ${reserva.destino}</li>
+              <li><b>ID:</b> ${reserva.id}</li>
+            </ul>`,
+            veiculo: v.nome, placa: v.placa, motorista: reserva.motorista, inicio: reserva.inicio, fim: reserva.fim
+          })
+        });
+        return await res.json();
+      }catch(e){ return { ok:false }; }
+    }
 
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          html:`<p><b>Nova reserva registrada</b></p>
-          <ul>
-            <li><b>Nome:</b> ${reserva.motorista}</li>
-            <li><b>Veículo:</b> ${v.nome} • ${v.placa}</li>
-            <li><b>Período:</b> ${fmt(reserva.inicio)} — ${fmt(reserva.fim)}</li>
-            <li><b>Destino:</b> ${reserva.destino}</li>
-            <li><b>ID:</b> ${reserva.id}</li>
-          </ul>`,
-          veiculo: v.nome,
-          placa: v.placa,
-          motorista: reserva.motorista,
-          inicio: reserva.inicio,
-          fim: reserva.fim
-        })
-      });
-      return await res.json();
+    async function salvarNoSheets(reserva, v){
+      try{
+        await fetch(SHEET_WEBAPP_URL, {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            token: SHEET_TOKEN,
+            id: reserva.id,
+            veiculo: v.nome,
+            placa: v.placa,
+            motorista: reserva.motorista,
+            destino: reserva.destino,
+            inicio: reserva.inicio,
+            fim: reserva.fim
+          })
+        });
+      }catch(e){ console.error('Sheets fail', e); }
     }
 
     async function verifyAdmin(pin){
-      const res = await fetch("/api/verify-admin",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ pin })
-      });
+      const res = await fetch("/api/verify-admin",{method:"POST",headers:{"Content-Type":"application/json"},body: JSON.stringify({ pin })});
       const data = await res.json().catch(()=>({ok:false}));
       return !!data.ok;
     }
@@ -118,18 +109,10 @@
         const pin = prompt("Digite o PIN de administrador:");
         if (!pin) return;
         const ok = await verifyAdmin(pin);
-        if (ok){
-          sessionStorage.setItem(ADMIN_FLAG_KEY,"1");
-          setAdmin(true);
-          alert("Acesso de administrador habilitado nesta sessão.");
-        } else {
-          alert("PIN inválido.");
-        }
+        if (ok){ sessionStorage.setItem(ADMIN_FLAG_KEY,"1"); setAdmin(true); alert("Acesso de administrador habilitado."); }
+        else alert("PIN inválido.");
       }
-      function sairAdmin(){
-        sessionStorage.removeItem(ADMIN_FLAG_KEY);
-        setAdmin(false);
-      }
+      function sairAdmin(){ sessionStorage.removeItem(ADMIN_FLAG_KEY); setAdmin(false); }
 
       function validarObrigatorios(){
         if (!form.nome?.trim()){ alert("Informe o Nome."); return false; }
@@ -145,30 +128,24 @@
       async function salvar(){
         if (!validarObrigatorios()) return;
         const v=VEHICLES.find(x=>x.id===form.veiculoId);
-        const reserva={
-          id:crypto.randomUUID(),
-          veiculoId:v.id,
-          destino:form.destino.trim(),
-          motorista:form.nome.trim(),
-          inicio:new Date(form.inicio).toISOString(),
-          fim:new Date(form.fim).toISOString()
-        };try { await salvarNoSheets(reserva, v); } catch(e) { console.error(e); }
-
+        const reserva={ id:crypto.randomUUID(), veiculoId:v.id, destino:form.destino.trim(), motorista:form.nome.trim(),
+          inicio:new Date(form.inicio).toISOString(), fim:new Date(form.fim).toISOString() };
         if (hasConflict(reservas,reserva)){ alert("Conflito detectado para este veículo no período."); return; }
         setReservas(prev=>{const n=[...prev,reserva];save(n);return n;});
-        try{ await sendEmail(reserva,v); }catch(e){ console.error(e); alert("Reserva salva, mas houve falha ao enviar o e-mail."); }
+
+        try{ await sendEmail(reserva,v); }catch(e){}
+        try{ await salvarNoSheets(reserva,v); }catch(e){}
+
         alert("Reserva salva.");
-        setForm({ veiculoId:VEHICLES[0].id, destino:"", nome:"", inicio:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16), fim:new Date(Date.now()+60*60*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16) });
+        setForm({ veiculoId:VEHICLES[0].id, destino:"", nome:"",
+          inicio:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),
+          fim:new Date(Date.now()+60*60*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16) });
       }
 
       function excluir(id){
         if (!admin){ alert("Apenas o administrador pode excluir reservas."); return; }
         if (!confirm("Remover esta reserva?")) return;
-        setReservas(prev=>{
-          const n = prev.filter(r=>r.id!==id);
-          save(n);
-          return n;
-        });
+        setReservas(prev=>{ const n=prev.filter(r=>r.id!==id); save(n); return n; });
       }
 
       const ordered = useMemo(()=>reservas.slice().sort((a,b)=>new Date(a.inicio)-new Date(b.inicio)),[reservas]);
