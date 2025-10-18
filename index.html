@@ -33,6 +33,8 @@
       { id:"virtus_cinza", nome:"Virtus Cinza", placa:"RYD2D70" },
       { id:"virtus_preto", nome:"Virtus Preto", placa:"RYD2B90" },
     ];
+    const VEH_LABEL = (id)=> id==="virtus_cinza" ? "Virtus Cinza • RYD2D70"
+                        : id==="virtus_preto" ? "Virtus Preto • RYD2B90" : id;
 
     const LS_KEY="fleet-bookings-v1";
     const ADMIN_FLAG_KEY="fleet-admin-unlocked";
@@ -42,47 +44,75 @@
     function hasConflict(list,c){return list.some(r=>r.id!==c.id&&r.veiculoId===c.veiculoId&&overlaps(r.inicio,r.fim,c.inicio,c.fim));}
     function fmt(x){const d=new Date(x);return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
 
-    // Relatório mensal (já existente)
+    // ===== Export Helpers (Excel .xls via HTML table) =====
+    function sanitize(text){ return String(text??'').replace(/[&<>]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[s])); }
+    function buildTableHTML(rows){
+      const head = ["INÍCIO","FIM","MOTORISTA","VEÍCULO","DESTINO"];
+      const styles = `
+        <style>
+          table{border-collapse:collapse;width:100%;font-family:Segoe UI,Roboto,Arial,sans-serif;font-size:12pt}
+          th,td{border:1px solid #D1D5DB;padding:8px;text-align:center;vertical-align:middle}
+          thead th{background:#0a4b3e;color:#fff;font-weight:700}
+          tbody tr:nth-child(even){background:#F9FAFB}
+        </style>`;
+      const thead = `<thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead>`;
+      const tbody = `<tbody>${
+        rows.map(r=>`<tr>
+          <td>${sanitize(r.inicio)}</td>
+          <td>${sanitize(r.fim)}</td>
+          <td>${sanitize(r.motorista)}</td>
+          <td>${sanitize(r.veiculo)}</td>
+          <td>${sanitize(r.destino)}</td>
+        </tr>`).join('')
+      }</tbody>`;
+      return `<!doctype html><html><head><meta charset="utf-8">${styles}</head>
+      <body><table>${thead}${tbody}</table></body></html>`;
+    }
+    function downloadExcelFromRows(rows, filename){
+      if (!rows || !rows.length){ alert("Não há dados no período selecionado."); return; }
+      const html = buildTableHTML(rows);
+      const blob = new Blob([html], { type: "application/vnd.ms-excel" });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename.endsWith(".xls") ? filename : (filename + ".xls");
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    }
+    function mapReservationsToSheetRows(items){
+      return items.map(r=>({
+        inicio: fmt(r.inicio),
+        fim: fmt(r.fim),
+        motorista: r.motorista || "",
+        veiculo: VEH_LABEL(r.veiculoId),
+        destino: r.destino || ""
+      }));
+    }
+    // Monthly
     function monthRange(m){const [y,mm]=m.split('-').map(Number);return{start:new Date(Date.UTC(y,mm-1,1)),end:new Date(Date.UTC(y,mm,1))};}
-    function inMonthRange(dt,start,end){const d=new Date(dt);return d>=start&&d<end;}
-    function toCSV(rows){const esc=v=>`"${String(v??'').replace(/"/g,'""')}"`;return rows.map(r=>r.map(esc).join(',')).join('\n');}
-    function buildMonthlyReportRows(reservas,m){const V={'virtus_cinza':'Virtus Cinza • RYD2D70','virtus_preto':'Virtus Preto • RYD2B90'};const{start,end}=monthRange(m);
-      const header=['ID','Veículo','Motorista','Destino','Início (local)','Fim (local)','Início (ISO)','Fim (ISO)'];
-      const body=reservas.filter(r=>inMonthRange(r.inicio,start,end)||inMonthRange(r.fim,start,end)).sort((a,b)=>new Date(a.inicio)-new Date(b.inicio)).map(r=>{
-        const v=V[r.veiculoId]||r.veiculoId;const d1=new Date(r.inicio),d2=new Date(r.fim);
-        return [r.id,v,r.motorista||'',r.destino||'',d1.toLocaleDateString('pt-BR')+' '+d1.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),d2.toLocaleDateString('pt-BR')+' '+d2.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),r.inicio,r.fim];
-      });return [header,...body];}
-    function downloadMonthlyCSV(reservas,m){const rows=buildMonthlyReportRows(reservas,m);if(rows.length<=1){alert('Não há reservas neste mês.');return;}
-      const csv=toCSV(rows);const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const a=document.createElement('a');const[y,mm]=m.split('-');a.href=URL.createObjectURL(blob);a.download=`reservas-frota_${y}-${mm}.csv`;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);}
-
-    // NOVO: Relatório por período (apenas para administrador)
-    function buildRangeReportRows(reservas, startISO, endISO){
+    function inRange(dt,start,end){const d=new Date(dt);return d>=start&&d<end;}
+    function exportMonthlyExcel(reservas, m){
+      const {start,end}=monthRange(m);
+      const subset = reservas.filter(r=>inRange(r.inicio,start,end)||inRange(r.fim,start,end))
+                             .sort((a,b)=>new Date(a.inicio)-new Date(b.inicio));
+      const rows = mapReservationsToSheetRows(subset);
+      const [y,mm] = m.split('-');
+      downloadExcelFromRows(rows, `reservas-frota_${y}-${mm}.xls`);
+    }
+    // Range (admin)
+    function exportRangeExcel(reservas, startISO, endISO){
       const start = startISO ? new Date(startISO) : null;
       const end   = endISO   ? new Date(endISO)   : null;
-      const header=['ID','Veículo','Motorista','Destino','Início (local)','Fim (local)','Início (ISO)','Fim (ISO)'];
-      const V={'virtus_cinza':'Virtus Cinza • RYD2D70','virtus_preto':'Virtus Preto • RYD2B90'};
-      const inRange = (r)=>{
+      const subset = reservas.filter(r=>{
         const a=new Date(r.inicio), b=new Date(r.fim);
         if (start && b < start) return false;
         if (end && a > end) return false;
         return true;
-      };
-      const body=reservas.filter(inRange).sort((a,b)=>new Date(a.inicio)-new Date(b.inicio)).map(r=>{
-        const v=V[r.veiculoId]||r.veiculoId;const d1=new Date(r.inicio),d2=new Date(r.fim);
-        return [r.id,v,r.motorista||'',r.destino||'',d1.toLocaleDateString('pt-BR')+' '+d1.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),d2.toLocaleDateString('pt-BR')+' '+d2.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),r.inicio,r.fim];
-      });
-      return [header,...body];
-    }
-    function downloadRangeCSV(reservas, startISO, endISO){
-      const rows=buildRangeReportRows(reservas,startISO,endISO);
-      if(rows.length<=1){alert('Não há reservas no período selecionado.');return;}
-      const csv=toCSV(rows);const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-      const a=document.createElement('a');
+      }).sort((a,b)=>new Date(a.inicio)-new Date(b.inicio));
+      const rows = mapReservationsToSheetRows(subset);
       const d1 = startISO ? startISO.slice(0,10) : 'inicio';
       const d2 = endISO ? endISO.slice(0,10) : 'fim';
-      a.href=URL.createObjectURL(blob);
-      a.download=`reservas-frota_${d1}_a_${d2}.csv`;
-      document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+      downloadExcelFromRows(rows, `reservas-frota_${d1}_a_${d2}.xls`);
     }
 
     async function verifyAdmin(pin){
@@ -96,7 +126,6 @@
       const [form,setForm]=useState({veiculoId:VEHICLES[0].id,destino:"",nome:"",inicio:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),fim:new Date(Date.now()+60*60*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16)});
       const [admin,setAdmin]=useState(sessionStorage.getItem(ADMIN_FLAG_KEY)==="1");
 
-      // NOVO: período do relatório (somente admin)
       const [rangeIni, setRangeIni] = useState(new Date(Date.now()-7*24*60*60*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16));
       const [rangeFim, setRangeFim] = useState(new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16));
 
@@ -198,7 +227,7 @@
               React.createElement('button',{ className:'btn btn-primary',
                 onClick:()=>{ const el=document.getElementById('report-month');
                   const ms=(el&&el.value)?el.value:(()=>{const d=new Date();const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');return `${y}-${m}`;})();
-                  downloadMonthlyCSV(ordered, ms);
+                  exportMonthlyExcel(ordered, ms);
                 }
               },'Baixar relatório (mês)')
             ])
@@ -215,7 +244,7 @@
                   React.createElement('input',{ type:'datetime-local', className:'input', value:rangeFim, onChange:e=>setRangeFim(e.target.value)})
                 ]),
                 React.createElement('div',null,[
-                  React.createElement('button',{ className:'btn btn-primary', onClick:()=>downloadRangeCSV(ordered, rangeIni?new Date(rangeIni).toISOString():null, rangeFim?new Date(rangeFim).toISOString():null) },'Baixar relatório (período)')
+                  React.createElement('button',{ className:'btn btn-primary', onClick:()=>exportRangeExcel(ordered, rangeIni?new Date(rangeIni).toISOString():null, rangeFim?new Date(rangeFim).toISOString():null) },'Baixar relatório (período)')
                 ])
               ])
             : null
