@@ -44,7 +44,7 @@
     function hasConflict(list,c){return list.some(r=>r.id!==c.id&&r.veiculoId===c.veiculoId&&overlaps(r.inicio,r.fim,c.inicio,c.fim));}
     function fmt(x){const d=new Date(x);return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
 
-    // ===== Export Helpers (Excel .xls via HTML table) =====
+    // ===== Export to Excel (.xls via HTML table) =====
     function sanitize(text){ return String(text??'').replace(/[&<>]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[s])); }
     function buildTableHTML(rows){
       const head = ["INÍCIO","FIM","MOTORISTA","VEÍCULO","DESTINO"];
