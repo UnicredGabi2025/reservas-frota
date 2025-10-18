@@ -1,8 +1,5 @@
 {
   "name": "reservas-frota",
-  "version": "2.3.0",
-  "private": true,
-  "dependencies": {
-    "nodemailer": "^6.9.13"
-  }
+  "version": "4.2.0",
+  "private": true
 }
