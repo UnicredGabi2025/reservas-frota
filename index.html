@@ -44,7 +44,7 @@
     function hasConflict(list,c){return list.some(r=>r.id!==c.id&&r.veiculoId===c.veiculoId&&overlaps(r.inicio,r.fim,c.inicio,c.fim));}
     function fmt(x){const d=new Date(x);return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
 
-    // ===== Export to Excel (.xls via HTML table) =====
+    // ===== Export Helpers (Excel .xls via HTML table) =====
     function sanitize(text){ return String(text??'').replace(/[&<>]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[s])); }
     function buildTableHTML(rows){
       const head = ["INÍCIO","FIM","MOTORISTA","VEÍCULO","DESTINO"];
@@ -115,20 +115,22 @@
       downloadExcelFromRows(rows, `reservas-frota_${d1}_a_${d2}.xls`);
     }
 
-    async function verifyAdmin(pin){
+    // ===== ADMIN PIN (Fallback local) =====
+    async function verifyAdmin(pin) {
       try {
-       const res = await fetch("/api/verify-admin", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin })
-    });
-         if (res.ok) {
-      const data = await res.json().catch(() => ({}));
-      if (data && data.ok) return true;
-            return false;
-    }} catch (e) {
-         const PIN_CORRETO = "827361";
-  return String(pin).trim() === PIN_CORRETO;
+        const res = await fetch("/api/verify-admin", {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ pin })
+        });
+        if (res.ok) {
+          const data = await res.json().catch(()=>({}));
+          if (data && data.ok) return true;
+          return false;
+        }
+      } catch (_) { /* rota ausente ou erro */ }
+      const PIN_CORRETO = "827361";
+      return String(pin).trim() === PIN_CORRETO;
     }
 
     function App(){
