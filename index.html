@@ -115,20 +115,8 @@
       downloadExcelFromRows(rows, `reservas-frota_${d1}_a_${d2}.xls`);
     }
 
-    // ===== ADMIN PIN (Fallback local) =====
+    // ===== ADMIN PIN (100% local, sem API) =====
     async function verifyAdmin(pin) {
-      try {
-        const res = await fetch("/api/verify-admin", {
-          method: "POST",
-          headers: {"Content-Type":"application/json"},
-          body: JSON.stringify({ pin })
-        });
-        if (res.ok) {
-          const data = await res.json().catch(()=>({}));
-          if (data && data.ok) return true;
-          return false;
-        }
-      } catch (_) { /* rota ausente ou erro */ }
       const PIN_CORRETO = "827361";
       return String(pin).trim() === PIN_CORRETO;
     }
