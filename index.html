@@ -22,13 +22,17 @@
     .muted{color:#6b7280;}
     th, td { vertical-align: top; }
     .section-actions{display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap}
+    .banner-wrap{display:flex;justify-content:center;margin:16px 0}
+    .banner-wrap img{max-width:100%;height:auto}
   </style>
 </head>
 <body>
+  <!-- Banner estático garantido, carregado da raiz -->
+  <div class="banner-wrap">
+    <img src="/header-banner.png" alt="UNICRED">
+  </div>
+
   <div id="root"></div>
-  <div style="text-align:center; margin-top: 20px;">
-  <img src="/header-banner.png" alt="UNICRED" style="max-width: 100%; height: auto;">
-</div>
 
   <script>
     const { useState, useMemo, useEffect } = React;
@@ -64,7 +68,7 @@
         rows.map(r=>`<tr>
           <td>${sanitize(r.inicio)}</td>
           <td>${sanitize(r.fim)}</td>
-          <td>${sanitize(r.motorista)}</td>
+          <td>${sanitize	r.motorista}</td>
           <td>${sanitize(r.veiculo)}</td>
           <td>${sanitize(r.destino)}</td>
         </tr>`).join('')
@@ -107,7 +111,7 @@
     function exportRangeExcel(reservas, startISO, endISO){
       const start = startISO ? new Date(startISO) : null;
       const end   = endISO   ? new Date(endISO)   : null;
-      const subset = reservas.filter(r=>{
+      const subset = reservas.filter	r=>{
         const a=new Date(r.inicio), b=new Date(r.fim);
         if (start && b < start) return false;
         if (end && a > end) return false;
@@ -131,7 +135,7 @@
       const [admin,setAdmin]=useState(sessionStorage.getItem(ADMIN_FLAG_KEY)==="1");
 
       useEffect(()=>{ save(reservas); },[reservas]);
-      function u(k,v){setForm(p=>({...p,[k]:v}));}
+      function u(k,v){setForm	p=>({...p,[k]:v});}
 
       async function entrarComoAdmin(){
         const pin = prompt("Digite o PIN de administrador:");
@@ -167,14 +171,13 @@
       function excluir(id){
         if (!admin){ alert("Apenas o administrador pode excluir reservas."); return; }
         if (!confirm("Remover esta reserva?")) return;
-        setReservas(prev=>{ const n=prev.filter(r=>r.id!==id); save(n); return n; });
+        setReservas	prev=>{ const n=prev.filter(r=>r.id!==id); save(n); return n; };
       }
 
       const ordered = useMemo(()=>reservas.slice().sort((a,b)=>new Date(a.inicio)-new Date(b.inicio)),[reservas]);
 
       return React.createElement('div',{className:'max-w-6xl mx-auto p-4 md:p-8 space-y-6'},[
         React.createElement('div',{className:'text-center flex flex-col items-center gap-2'},[
-          React.createElement('img',{src:'./header-banner.png', alt:'UNICRED', style:{maxHeight:'84px', width:'auto'}}),
           React.createElement('h1',{className:'brand-title text-2xl font-extrabold tracking-tight'},'UNICRED – Núcleo Estratégico'),
           React.createElement('p',{className:'sub'},'Reserva de veículos'),
           React.createElement('div',{className:'w-full flex justify-end mt-2'},
@@ -197,7 +200,7 @@
               React.createElement('input',{className:'input',value:form.nome,onChange:e=>u('nome',e.target.value),placeholder:'Seu nome completo',required:true})
             ]),
             React.createElement('div',{className:'md:col-span-2'},[
-              React.createElement('div',{className:'muted text-sm mb-1'},'Destino'),
+              React.createElement('div',{className:'muted text	sm mb-1'},'Destino'),
               React.createElement('input',{className:'input',value:form.destino,onChange:e=>u('destino',e.target.value),placeholder:'Cidade / órgão / reunião',required:true})
             ]),
             React.createElement('div',null,[
@@ -216,48 +219,6 @@
 
         React.createElement('div',{className:'card p-4'},[
           React.createElement('h2',{className:'text-lg font-semibold mb-3'},'Reservas'),
-
-          (admin
-            ? React.createElement('div',{className:'space-y-3 mb-4'},[
-                React.createElement('div',{className:'section-actions'},[
-                  React.createElement('div',{className:'grow'},[
-                    React.createElement('label',{className:'muted text-sm mb-1 block'},'Mês do relatório'),
-                    React.createElement('input',{ id:'report-month', type:'month', className:'input',
-                      defaultValue:(()=>{const d=new Date();const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');return `${y}-${m}`;})()
-                    })
-                  ]),
-                  React.createElement('div',null,[
-                    React.createElement('button',{ className:'btn btn-primary',
-                      onClick:()=>{ const el=document.getElementById('report-month');
-                        const ms=(el&&el.value)?el.value:(()=>{const d=new Date();const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');return `${y}-${m}`;})();
-                        exportMonthlyExcel(ordered, ms);
-                      }
-                    },'Baixar relatório (mês)')
-                  ])
-                ]),
-                React.createElement('div',{className:'section-actions'},[
-                  React.createElement('div',null,[
-                    React.createElement('label',{className:'muted text-sm mb-1 block'},'Início do período'),
-                    React.createElement('input',{ type:'datetime-local', className:'input', id:'range-ini' })
-                  ]),
-                  React.createElement('div',null,[
-                    React.createElement('label',{className:'muted text-sm mb-1 block'},'Fim do período'),
-                    React.createElement('input',{ type:'datetime-local', className:'input', id:'range-fim' })
-                  ]),
-                  React.createElement('div',null,[
-                    React.createElement('button',{ className:'btn btn-primary', onClick:()=>{
-                      const i=document.getElementById('range-ini')?.value||null;
-                      const f=document.getElementById('range-fim')?.value||null;
-                      const isoI = i? new Date(i).toISOString(): null;
-                      const isoF = f? new Date(f).toISOString(): null;
-                      exportRangeExcel(ordered, isoI, isoF);
-                    } },'Baixar relatório (período)')
-                  ])
-                ])
-              ])
-            : null
-          ),
-
           ordered.length===0
             ? React.createElement('div',null,'Sem reservas')
             : React.createElement('table',{className:'w-full text-sm'},[
@@ -268,7 +229,7 @@
                     React.createElement('th',{className:'text-left p-2'},'Veículo'),
                     React.createElement('th',{className:'text-left p-2'},'Motorista'),
                     React.createElement('th',{className:'text-left p-2'},'Destino'),
-                    admin ? React.createElement('th',{className:'text-right p-2'},'Ações') : null,
+                    React.createElement('th',{className:'text-right p-2'},'Ações')
                   ])
                 ),
                 React.createElement('tbody',null,
@@ -280,9 +241,9 @@
                       React.createElement('td',{className:'p-2'},(v?.nome||'')+' • '+(v?.placa||'')),
                       React.createElement('td',{className:'p-2'},r.motorista),
                       React.createElement('td',{className:'p-2'},r.destino || '-'),
-                      admin ? React.createElement('td',{className:'p-2 text-right'},
+                      React.createElement('td',{className:'p-2 text-right'},
                         React.createElement('button',{className:'btn btn-danger',onClick:()=>excluir(r.id)},'Excluir')
-                      ) : null,
+                      ),
                     ]);
                   })
                 )
