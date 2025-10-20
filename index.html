@@ -35,6 +35,30 @@
   <script>
     const { useState, useMemo, useEffect } = React;
 
+    // ================== CONFIG FIREBASE ==================
+    const DB_BASE = "https://reservas-fb0e2-default-rtdb.firebaseio.com/";
+    const R_URL = DB_BASE + "reservas";
+    async function dbList() {
+      const r = await fetch(R_URL + ".json");
+      const data = await r.json();
+      if (!data) return [];
+      return Object.entries(data).map(([id, v]) => ({ id, ...v }))
+        .sort((a,b)=> new Date(a.inicio) - new Date(b.inicio));
+    }
+    async function dbCreate(reserva) {
+      const r = await fetch(R_URL + ".json", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reserva)
+      });
+      const data = await r.json(); // { name: "<id>" }
+      return data?.name;
+    }
+    async function dbDelete(id) {
+      await fetch(`${R_URL}/${id}.json`, { method: "DELETE" });
+    }
+    // =====================================================
+
     const VEHICLES=[
       { id:"virtus_cinza", nome:"Virtus Cinza", placa:"RYD2D70" },
       { id:"virtus_preto", nome:"Virtus Preto", placa:"RYD2B90" },
@@ -42,10 +66,7 @@
     const VEH_LABEL = (id)=> id==="virtus_cinza" ? "Virtus Cinza • RYD2D70"
                         : id==="virtus_preto" ? "Virtus Preto • RYD2B90" : id;
 
-    const LS_KEY="fleet-bookings-v1";
     const ADMIN_FLAG_KEY="fleet-admin-unlocked";
-    const load=()=>{ try{return JSON.parse(localStorage.getItem(LS_KEY)||"[]")}catch{return[]} };
-    const save=(rows)=>localStorage.setItem(LS_KEY, JSON.stringify(rows));
     function overlaps(a,b,c,d){return(new Date(a)<new Date(d))&&(new Date(c)<new Date(b));}
     function hasConflict(list,c){return list.some(r=>r.id!==c.id&&r.veiculoId===c.veiculoId&&overlaps(r.inicio,r.fim,c.inicio,c.fim));}
     function fmt(x){const d=new Date(x);return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
@@ -94,18 +115,14 @@
         destino: r.destino || ""
       }));
     }
-    // Monthly
-    function monthRange(m){const [y,mm]=m.split('-').map(Number);return{start:new Date(Date.UTC(y,mm-1,1)),end:new Date(Date.UTC(y,mm,1))};}
-    function inRange(dt,start,end){const d=new Date(dt);return d>=start&&d<end;}
     function exportMonthlyExcel(reservas, m){
-      const {start,end}=monthRange(m);
-      const subset = reservas.filter(r=>inRange(r.inicio,start,end)||inRange(r.fim,start,end))
+      const [Y,M]=m.split('-').map(Number);
+      const start=new Date(Date.UTC(Y,M-1,1)); const end=new Date(Date.UTC(Y,M,1));
+      const subset = reservas.filter(r=>{ const a=new Date(r.inicio), b=new Date(r.fim); return (a<end && b>=start); })
                              .sort((a,b)=>new Date(a.inicio)-new Date(b.inicio));
       const rows = mapReservationsToSheetRows(subset);
-      const [y,mm] = m.split('-');
-      downloadExcelFromRows(rows, `reservas-frota_${y}-${mm}.xls`);
+      downloadExcelFromRows(rows, `reservas-frota_${m}.xls`);
     }
-    // Range (admin)
     function exportRangeExcel(reservas, startISO, endISO){
       const start = startISO ? new Date(startISO) : null;
       const end   = endISO   ? new Date(endISO)   : null;
@@ -128,11 +145,12 @@
     }
 
     function App(){
-      const [reservas,setReservas]=useState(load());
+      const [reservas,setReservas]=useState([]);
       const [form,setForm]=useState({veiculoId:VEHICLES[0].id,destino:"",nome:"",inicio:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),fim:new Date(Date.now()+60*60*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16)});
       const [admin,setAdmin]=useState(sessionStorage.getItem(ADMIN_FLAG_KEY)==="1");
 
-      useEffect(()=>{ save(reservas); },[reservas]);
+      useEffect(()=>{ (async()=>{ try{ const all=await dbList(); setReservas(all);}catch(e){ console.error(e); alert("Falha ao carregar reservas. Verifique as Regras do Firebase."); } })(); },[]);
+
       function u(k,v){setForm(p=>({...p,[k]:v}));}
 
       async function entrarComoAdmin(){
@@ -158,18 +176,32 @@
       async function salvar(){
         if (!validarObrigatorios()) return;
         const v=VEHICLES.find(x=>x.id===form.veiculoId);
-        const reserva={ id:crypto.randomUUID(), veiculoId:v.id, destino:form.destino.trim(), motorista:form.nome.trim(),
+        const nova={ veiculoId:v.id, destino:form.destino.trim(), motorista:form.nome.trim(),
           inicio:new Date(form.inicio).toISOString(), fim:new Date(form.fim).toISOString() };
-        if (hasConflict(reservas,reserva)){ alert("Conflito detectado para este veículo no período."); return; }
-        setReservas(prev=>{const n=[...prev,reserva];save(n);return n;});
-        alert("Reserva salva.");
-        setForm({veiculoId:VEHICLES[0].id,destino:"",nome:"",inicio:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),fim:new Date(Date.now()+60*60*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16)});
+        if (hasConflict(reservas,{...nova,id:"tmp"})){ alert("Conflito detectado para este veículo no período."); return; }
+        try{
+          await dbCreate(nova);
+          const all=await dbList();
+          setReservas(all);
+          alert("Reserva salva.");
+          setForm({veiculoId:VEHICLES[0].id,destino:"",nome:"",
+            inicio:new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),
+            fim:new Date(Date.now()+60*60*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16)});
+        }catch(e){
+          console.error(e); alert("Falha ao salvar. Verifique as Regras do Firebase.");
+        }
       }
 
-      function excluir(id){
+      async function excluir(id){
         if (!admin){ alert("Apenas o administrador pode excluir reservas."); return; }
         if (!confirm("Remover esta reserva?")) return;
-        setReservas(prev=>{ const n=prev.filter(r=>r.id!==id); save(n); return n; });
+        try{
+          await dbDelete(id);
+          const all=await dbList();
+          setReservas(all);
+        }catch(e){
+          console.error(e); alert("Falha ao excluir. Verifique as Regras do Firebase.");
+        }
       }
 
       const ordered = useMemo(()=>reservas.slice().sort((a,b)=>new Date(a.inicio)-new Date(b.inicio)),[reservas]);
@@ -199,7 +231,7 @@
             ]),
             React.createElement('div',{className:'md:col-span-2'},[
               React.createElement('div',{className:'muted text-sm mb-1'},'Destino'),
-              React.createElement('input',{className:'input',value:form.destino,onChange:e=>u('destino',e.target.value),placeholder:'Cidade / órgão / reunião',required:true})
+              React.createElement('input',{className:'input',value:form.destino,onChange	e=>u('destino',e.target.value),placeholder:'Cidade / órgão / reunião',required:true})
             ]),
             React.createElement('div',null,[
               React.createElement('div',{className:'muted text-sm mb-1'},'Data e hora (início)'),
@@ -241,7 +273,7 @@
                       React.createElement('td',{className:'p-2'},r.motorista),
                       React.createElement('td',{className:'p-2'},r.destino || '-'),
                       isAdmin ? React.createElement('td',{className:'p-2 text-right'},
-                        React.createElement('button',{className:'btn btn-danger',onClick:()=>{ if(confirm('Remover esta reserva?')){ setReservas(prev=>{ const n=prev.filter(x=>x.id!==r.id); save(n); return n; }); } }},'Excluir')
+                        React.createElement('button',{className:'btn btn-danger',onClick:()=>excluir(r.id)},'Excluir')
                       ) : null,
                     ]);
                   })
@@ -260,25 +292,7 @@
                     React.createElement('button',{ className:'btn btn-primary',
                       onClick:()=>{ const el=document.getElementById('report-month');
                         const ms=(el&&el.value)?el.value:(()=>{const d=new Date();const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,'0');return `${y}-${m}`;})();
-                        const subset = ordered.filter(r=>{ 
-                          const a=new Date(r.inicio), b=new Date(r.fim); 
-                          const [Y,M]=ms.split('-').map(Number);
-                          const start=new Date(Date.UTC(Y,M-1,1)); const end=new Date(Date.UTC(Y,M,1));
-                          return (a<end && b>=start);
-                        }).sort((a,b)=>new Date(a.inicio)-new Date(b.inicio));
-                        const rows = subset.map(rr=>({
-                          inicio: fmt(rr.inicio), fim: fmt(rr.fim),
-                          motorista: rr.motorista, veiculo: (VEHICLES.find(x=>x.id===rr.veiculoId)?.nome||'')+' • '+(VEHICLES.find(x=>x.id===rr.veiculoId)?.placa||''),
-                          destino: rr.destino||''
-                        }));
-                        const styles = '<style>table{border-collapse:collapse;width:100%;font-family:Segoe UI,Roboto,Arial,sans-serif;font-size:12pt}th,td{border:1px solid #D1D5DB;padding:8px;text-align:center;vertical-align:middle}thead th{background:#0a4b3e;color:#fff;font-weight:700}tbody tr:nth-child(even){background:#F9FAFB}</style>';
-                        const tbl = '<table><thead><tr><th>INÍCIO</th><th>FIM</th><th>MOTORISTA</th><th>VEÍCULO</th><th>DESTINO</th></tr></thead><tbody>'
-                          + rows.map(o=>`<tr><td>${o.inicio}</td><td>${o.fim}</td><td>${o.motorista}</td><td>${o.veiculo}</td><td>${o.destino}</td></tr>`).join('')
-                          + '</tbody></table>';
-                        const html = '<!doctype html><html><head><meta charset="utf-8">'+styles+'</head><body>'+tbl+'</body></html>';
-                        const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
-                        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'reservas-frota_'+ms+'.xls';
-                        document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();}, 1000);
+                        exportMonthlyExcel(ordered, ms);
                       }
                     },'Baixar relatório (mês)')
                   ])
@@ -298,27 +312,7 @@
                       const f=document.getElementById('range-fim')?.value||null;
                       const isoI = i? new Date(i).toISOString(): null;
                       const isoF = f? new Date(f).toISOString(): null;
-                      const start = isoI? new Date(isoI) : null;
-                      const end = isoF? new Date(isoF) : null;
-                      const subset = ordered.filter(r=>{
-                        const a=new Date(r.inicio), b=new Date(r.fim);
-                        if (start && b < start) return false;
-                        if (end && a > end) return false;
-                        return true;
-                      }).sort((a,b)=>new Date(a.inicio)-new Date(b.inicio));
-                      const rows = subset.map(rr=>({
-                        inicio: fmt(rr.inicio), fim: fmt(rr.fim),
-                        motorista: rr.motorista, veiculo: (VEHICLES.find(x=>x.id===rr.veiculoId)?.nome||'')+' • '+(VEHICLES.find(x=>x.id===rr.veiculoId)?.placa||''),
-                        destino: rr.destino||''
-                      }));
-                      const styles = '<style>table{border-collapse:collapse;width:100%;font-family:Segoe UI,Roboto,Arial,sans-serif;font-size:12pt}th,td{border:1px solid #D1D5DB;padding:8px;text-align:center;vertical-align:middle}thead th{background:#0a4b3e;color:#fff;font-weight:700}tbody tr:nth-child(even){background:#F9FAFB}</style>';
-                      const tbl = '<table><thead><tr><th>INÍCIO</th><th>FIM</th><th>MOTORISTA</th><th>VEÍCULO</th><th>DESTINO</th></tr></thead><tbody>'
-                        + rows.map(o=>`<tr><td>${o.inicio}</td><td>${o.fim}</td><td>${o.motorista}</td><td>${o.veiculo}</td><td>${o.destino}</td></tr>`).join('')
-                        + '</tbody></table>';
-                      const html = '<!doctype html><html><head><meta charset="utf-8">'+styles+'</head><body>'+tbl+'</body></html>';
-                      const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
-                      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'reservas-frota_periodo.xls';
-                      document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();}, 1000);
+                      exportRangeExcel(ordered, isoI, isoF);
                     } },'Baixar relatório (período)')
                   ])
                 ])
