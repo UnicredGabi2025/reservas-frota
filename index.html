@@ -14,7 +14,7 @@
     .sub{color:#6b7280;}
     .btn{padding:.5rem .75rem;border:1px solid #d1d5db;border-radius:.5rem;background:#fff;}
     .btn:hover{background:#f9fafb;}
-    .btn-primary{background:var(--brand-primary);color:#fff;border-color:var(--brand-primary);}
+    .btn-primary{background:var(--brand-primary);color:#fff;border-color:#var(--brand-primary);}
     .btn-danger{background:#ef4444;color:#fff;border-color:#ef4444;}
     .btn-ghost{background:transparent;border-color:#d1d5db;}
     .card{background:#fff;border:1px solid #e5e7eb;border-radius:.75rem;}
@@ -149,43 +149,30 @@
       const [form,setForm]=useState({
         veiculoId: VEHICLES[0].id,
         destino: "",
+        motivo: "",
         nome: "",
         inicio: new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),
         fim: new Date(Date.now()+60*60*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16)
       });
       const [admin,setAdmin]=useState(sessionStorage.getItem(ADMIN_FLAG_KEY)==="1");
 
-      useEffect(()=>{
-        (async()=>{
-          try{
-            const all=await dbList();
-            setReservas(all);
-          }catch(e){
-            console.error(e);
-            alert("Falha ao carregar reservas. Verifique as Regras do Firebase.");
-          }
-        })();
-      },[]);
+      useEffect(()=>{ (async()=>{ try{ const all=await dbList(); setReservas(all);}catch(e){ console.error(e); alert("Falha ao carregar reservas. Verifique as Regras do Firebase."); } })(); },[]);
 
-      function u(k,v){ setForm(p=>({...p,[k]:v})); }
+      function u(k,v){setForm(p=>({...p,[k]:v}));}
 
       async function entrarComoAdmin(){
         const pin = prompt("Digite o PIN de administrador:");
         if (!pin) return;
         const ok = await verifyAdmin(pin);
-        if (ok){
-          sessionStorage.setItem(ADMIN_FLAG_KEY,"1");
-          setAdmin(true);
-          alert("Acesso de administrador habilitado.");
-        } else {
-          alert("PIN inválido.");
-        }
+        if (ok){ sessionStorage.setItem(ADMIN_FLAG_KEY,"1"); setAdmin(true); alert("Acesso de administrador habilitado."); }
+        else alert("PIN inválido.");
       }
       function sairAdmin(){ sessionStorage.removeItem(ADMIN_FLAG_KEY); setAdmin(false); }
 
       function validarObrigatorios(){
         if (!form.nome?.trim()){ alert("Informe o Nome."); return false; }
         if (!form.destino?.trim()){ alert("Informe o Destino."); return false; }
+        if (!form.motivo?.trim()){ alert("Informe o Motivo."); return false; }
         if (!form.inicio){ alert("Informe a Data/Hora de início."); return false; }
         if (!form.fim){ alert("Informe a Data/Hora de fim."); return false; }
         const ini = new Date(form.inicio), fim = new Date(form.fim);
@@ -200,14 +187,12 @@
         const nova={
           veiculoId: v.id,
           destino: form.destino.trim(),
+          motivo: form.motivo.trim(),
           motorista: form.nome.trim(),
           inicio: new Date(form.inicio).toISOString(),
           fim: new Date(form.fim).toISOString()
         };
-        if (hasConflict(reservas,{...nova,id:"tmp"})){
-          alert("Conflito detectado para este veículo no período.");
-          return;
-        }
+        if (hasConflict(reservas,{...nova,id:"tmp"})){ alert("Conflito detectado para este veículo no período."); return; }
         try{
           await dbCreate(nova);
           const all=await dbList();
@@ -216,13 +201,13 @@
           setForm({
             veiculoId: VEHICLES[0].id,
             destino: "",
+            motivo: "",
             nome: "",
             inicio: new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),
             fim: new Date(Date.now()+60*60*1000-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16)
           });
         }catch(e){
-          console.error(e);
-          alert("Falha ao salvar. Verifique as Regras do Firebase.");
+          console.error(e); alert("Falha ao salvar. Verifique as Regras do Firebase.");
         }
       }
 
@@ -234,8 +219,7 @@
           const all=await dbList();
           setReservas(all);
         }catch(e){
-          console.error(e);
-          alert("Falha ao excluir. Verifique as Regras do Firebase.");
+          console.error(e); alert("Falha ao excluir. Verifique as Regras do Firebase.");
         }
       }
 
@@ -264,9 +248,14 @@
               React.createElement('div',{className:'muted text-sm mb-1'},'Nome'),
               React.createElement('input',{className:'input',value:form.nome,onChange:e=>u('nome',e.target.value),placeholder:'Seu nome completo',required:true})
             ]),
-            React.createElement('div',{className:'md:col-span-2'},[
+            // Linha: Destino (metade) + Motivo (metade)
+            React.createElement('div',null,[
               React.createElement('div',{className:'muted text-sm mb-1'},'Destino'),
               React.createElement('input',{className:'input',value:form.destino,onChange:e=>u('destino',e.target.value),placeholder:'Cidade / órgão / reunião',required:true})
+            ]),
+            React.createElement('div',null,[
+              React.createElement('div',{className:'muted text-sm mb-1'},'Motivo'),
+              React.createElement('input',{className:'input',value:form.motivo,onChange:e=>u('motivo',e.target.value),placeholder:'Ex.: Reunião, visita técnica...',required:true})
             ]),
             React.createElement('div',null,[
               React.createElement('div',{className:'muted text-sm mb-1'},'Data e hora (início)'),
