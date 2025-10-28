@@ -147,7 +147,7 @@
     function App(){
       const [reservas,setReservas]=useState([]);
       const [form,setForm]=useState({
-        veiculoId: VEHICLES[0].id,
+        veiculoId: "", // começa vazio
         destino: "",
         motivo: "",
         nome: "",
@@ -158,7 +158,7 @@
 
       useEffect(()=>{ (async()=>{ try{ const all=await dbList(); setReservas(all);}catch(e){ console.error(e); alert("Falha ao carregar reservas. Verifique as Regras do Firebase."); } })(); },[]);
 
-      function u(k,v){setForm(p=>({...p,[k]:v}));}
+      function u(k,v){ setForm(p=>({...p,[k]:v})); }
 
       async function entrarComoAdmin(){
         const pin = prompt("Digite o PIN de administrador:");
@@ -170,6 +170,7 @@
       function sairAdmin(){ sessionStorage.removeItem(ADMIN_FLAG_KEY); setAdmin(false); }
 
       function validarObrigatorios(){
+        if (!form.veiculoId){ alert("Selecione o Veículo."); return false; }
         if (!form.nome?.trim()){ alert("Informe o Nome."); return false; }
         if (!form.destino?.trim()){ alert("Informe o Destino."); return false; }
         if (!form.motivo?.trim()){ alert("Informe o Motivo."); return false; }
@@ -192,14 +193,17 @@
           inicio: new Date(form.inicio).toISOString(),
           fim: new Date(form.fim).toISOString()
         };
-        if (hasConflict(reservas,{...nova,id:"tmp"})){ alert("Conflito detectado para este veículo no período."); return; }
+        if (hasConflict(reservas,{...nova,id:"tmp"})){
+          alert("Conflito detectado para este veículo no período.");
+          return;
+        }
         try{
           await dbCreate(nova);
           const all=await dbList();
           setReservas(all);
           alert("Reserva salva.");
           setForm({
-            veiculoId: VEHICLES[0].id,
+            veiculoId: "",
             destino: "",
             motivo: "",
             nome: "",
@@ -242,7 +246,10 @@
             React.createElement('div',null,[
               React.createElement('div',{className:'muted text-sm mb-1'},'Veículo'),
               React.createElement('select',{className:'select',value:form.veiculoId,onChange:e=>u('veiculoId',e.target.value),required:true},
-                VEHICLES.map(v=>React.createElement('option',{key:v.id,value:v.id},v.nome+' • '+v.placa)))
+                [React.createElement('option',{key:'placeholder',value:''},'Selecione o veículo…')].concat(
+                  VEHICLES.map(v=>React.createElement('option',{key:v.id,value:v.id},v.nome+' • '+v.placa))
+                )
+              )
             ]),
             React.createElement('div',null,[
               React.createElement('div',{className:'muted text-sm mb-1'},'Nome'),
